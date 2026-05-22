@@ -35,13 +35,21 @@ Six phases. Don't skip them — even the fast ones serve a purpose.
 
 ### 1. Understand the request
 
-Read the user's prompt carefully. If the scope is unclear, ask 3–5 focused questions before doing anything else. Aim to leave the conversation knowing: *what is the smallest interesting version of this feature, and what is explicitly out of scope?*
+Read the user's prompt carefully. The headline question to answer before doing anything else:
+
+> **What is the smallest interesting version of this feature?**
+
+If you can't name it in one sentence after the user's first message, the request isn't ready yet — ask 3–5 focused questions until you can. Scope creep is the dominant failure mode in spec-writing, and the smallest-interesting-version question is the main defense against it. A spec that ships a smaller feature than the user originally described is usually better than one that captures everything they said.
+
+Also pin down: what is *explicitly out of scope*? The Non-goals section starts forming here.
 
 ### 2. Research the codebase
 
 Read the relevant existing code, docs, and configuration. Ground the spec in what's actually there — file paths, function names, current data model, current invariants — so the proposal slots into reality rather than floating in space.
 
 If the project has a `CLAUDE.md` or similar conventions file, read it. If `docs/CONCEPT.md`, `docs/ARCHITECTURE.md`, or other top-level docs exist, read the relevant ones. Spawn parallel reads when there are several independent files to look at.
+
+Pay particular attention to **existing patterns the new feature could reuse**. The most valuable thing the spec can say is "this reuses X" — the second most valuable is "this deliberately diverges from X because Y." Both depend on knowing what X is.
 
 ### 3. Offer options upfront, in conversation
 
@@ -53,6 +61,8 @@ This is the most important step. Before writing anything to disk, present 2–3 
 - A recommendation, with reasoning.
 
 Then ask the user which to proceed with. The user may pick one wholesale, mix elements, or send you back for a different option set. **Don't draft the full spec until they've chosen.**
+
+A real fork diverges on the load-bearing decision (server-authoritative vs client-authoritative, single-table vs separate tables). A fake fork diverges on naming or syntax — those waste the user's attention. If the only honest options share 90% of the design, say so and confirm before drafting.
 
 If the request is so well-defined that there really is only one reasonable approach, say so plainly, justify it in a sentence or two, and confirm before drafting. Don't manufacture fake options to pad a list — a weak alternative wastes the user's attention.
 
@@ -69,13 +79,50 @@ Once an approach is chosen, write the draft to:
 - Create `docs/specs/` if it doesn't exist.
 - If the project's existing conventions clearly call for a different location (e.g., a `CLAUDE.md` says specs live in `requirements/`, or the user explicitly names a path), follow that instead.
 
-Use this template as a starting skeleton. Adapt the section names and depth to fit the spec at hand — don't pad with empty sections, and don't be afraid to add new ones (data model, migration, UI, edge cases) when they earn their keep.
+#### Length calibration
+
+Most specs are **50–200 lines**. Past 300 lines, you're either tackling something genuinely large or you're padding — and the model's bias is strongly toward padding. A reviewer who can't hold the whole spec in their head can't catch architectural problems in it. Resist the urge to include every type definition, every route signature, every migration step. The spec is the *thinking*, not the *implementation*.
+
+If you find yourself approaching 300 lines, ask: is this one spec, or three? Splitting a large feature into multiple smaller specs is usually right.
+
+#### Template
+
+Use this as a starting skeleton. Adapt section names and depth — don't pad with empty sections, and add new ones only when they earn their keep.
 
 ```markdown
 # <Feature name>
 
 <One-paragraph summary: what this feature is, why it exists, and the
 chosen approach in one breath.>
+
+## Key decisions
+
+<The load-bearing choices a reviewer should check before approving.
+This is the section a code reviewer reads first — surface them here,
+don't bury them in Design. Cover both kinds:
+
+- **Code-shape choices** — which existing pattern to reuse, where a
+  check lives, which abstraction owns a piece of state.
+- **Tech-stack choices** — which package or library to add, which
+  dependency to drop, which framework / runtime / build tool to
+  pull in. A wrong dependency is just as load-bearing as a wrong
+  pattern.
+
+Each entry is one short bullet tagged with how it relates to the
+existing codebase:
+
+- `(reuses)`   — adopts an existing pattern as-is
+- `(extends)`  — reuses with deliberate additions or modifications
+- `(new)`      — introduces a pattern not previously in the codebase
+- `(diverges)` — goes against an existing convention, deliberately
+- `(breaking)` — changes a contract other code depends on
+
+Aim for 4–8 entries. More than 10 usually means you're listing
+implementation details instead of decisions.>
+
+- **<Short decision name>** (tag). <One- or two-sentence description
+  of what was decided and why, especially the relationship to
+  existing code.>
 
 ## Goals
 
@@ -94,9 +141,9 @@ the spec is prose, not an implementation.>
 
 ## Open questions
 
-- **Q:** <Specific, narrow, answerable question.>
-
-  *(Leave a blank line for the user to type the answer in.)*
+- **Q:** <Specific, narrow, answerable question.> **Default:** <Your
+  best-guess answer. Stating a default lets the user accept by
+  silence rather than having to type a reply for every question.>
 
 ## Alternatives considered
 
@@ -104,6 +151,91 @@ the spec is prose, not an implementation.>
 each is plenty — the point is not to re-litigate, it's to record why
 this path was taken.>
 ```
+
+#### Why "Key decisions" matters
+
+A reviewer's job is to catch architectural mistakes — the spec inventing a new pattern when an existing one would do, or diverging from a convention without good reason. With the load-bearing choices buried in Design, that work means reading the whole spec. With them surfaced at the top, tagged by their relationship to the existing codebase, a reviewer can scan the `(new)` and `(diverges)` bullets in under a minute and spend the rest of their attention on the genuinely novel parts.
+
+This is the section that does the most work per line of any in the spec. Treat it as required, not optional.
+
+#### Why Open Questions take defaults
+
+Stating `Default: X` after every question lets the user accept by silence. Without defaults, every question is a blocker — the user has to type something on each one before the spec moves forward. With defaults, the spec is shippable as-is, and the user only weighs in on the questions where the default is wrong.
+
+#### A worked example (right-sized)
+
+A complete spec for a small feature, demonstrating the shape and density that "right-sized" means in practice. ~55 lines, all sections present, none padded.
+
+````markdown
+# Skip inactive users in the daily digest
+
+Add a guard to the daily-digest job so users who haven't logged in
+for 30 days don't receive the email. The cutoff is checked at send
+time against `users.lastLoginAt`; users below the threshold are
+silently skipped.
+
+## Key decisions
+
+- **Where the check lives** (extends). Runs inside
+  `DigestJob.shouldSend(user)` next to the existing unsubscribe
+  check, not at the recipient-query level. Reason: keeps all
+  "should this user receive a digest" logic in one place.
+- **Threshold value** (new). 30 days, hardcoded as
+  `INACTIVE_DAYS = 30` in `digest.ts`. Not a config — we don't
+  expect tuning, and a constant is easier to grep.
+- **Send-log behavior** (diverges). Skipped users get no row in
+  `digest_sends`. Existing convention logs every attempted send;
+  we diverge because "didn't try" and "tried and suppressed" are
+  meaningfully different states.
+- **`date-fns` dependency** (reuses). The 30-day arithmetic uses
+  `differenceInDays` from `date-fns`, already a project dep.
+  Considered raw `Date` math; rejected for readability.
+
+## Goals
+
+- Stop emailing users who have effectively churned.
+- Have the skip be observable in metrics (daily count of
+  inactive-skipped users).
+
+## Non-goals
+
+- Re-engagement campaigns for churned users.
+- A configurable threshold per workspace.
+
+## Design
+
+`DigestJob.run()` already iterates eligible users and calls
+`shouldSend(user)`. Add a guard at the top of `shouldSend`:
+
+```ts
+const daysSinceLogin =
+  (Date.now() - user.lastLoginAt.getTime()) / 86_400_000;
+if (daysSinceLogin > INACTIVE_DAYS) {
+  metrics.inc("digest.skipped_inactive");
+  return false;
+}
+```
+
+Users with `lastLoginAt = NULL` (admin-created, never logged in)
+are treated as inactive and skipped.
+
+## Open questions
+
+- **Q:** Should re-activation flip eligibility same-day, or wait
+  for the next daily run? **Default:** wait for the next run — the
+  user already gets a login-confirmation email, so a same-day
+  digest would be noise.
+
+## Alternatives considered
+
+- **Filter at the recipient query** (`WHERE lastLoginAt > ...`).
+  Cheaper but scatters the eligibility logic across the query and
+  `shouldSend`. Rejected — one place beats two.
+- **Soft-delete inactive users.** Out of scope; we may still need
+  to email them for account purposes (password expiry, etc).
+````
+
+Note what this example *doesn't* have: no Implementation Order section, no Testing section, no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions.
 
 ### 5. Hand off for inline review
 
@@ -116,19 +248,16 @@ Then **stop and wait**. Don't keep working on the spec until the user signals ba
 When the user signals they've added comments (typical phrasings: "I've added comments", "take another pass", "look at the file again"):
 
 1. Re-read the spec from disk.
-2. Find every line beginning with `////`. Treat each as user feedback attached to its surrounding context.
-3. Integrate the feedback into the relevant section, then **remove the `////` line itself** — the marker is review scaffolding, not part of the final document.
-4. If they answered any Open Questions inline (under the question, or by rewriting it), integrate those answers into the design and remove the resolved questions.
-5. If the user has rewritten or restructured parts of the document themselves, **respect their edits**. Their words are the source of truth — your job is to make the rest of the document consistent with what they wrote, not to revert it to your version.
-6. Surface any new questions the changes expose, either as fresh Open Questions in the document or in chat.
+2. Find every line beginning with `////`. Treat each as user feedback attached to its surrounding context. Integrate the feedback into the relevant section, then **remove the `////` line itself** — the marker is review scaffolding, not part of the final document.
+3. If they answered any Open Questions inline (by replacing the default, rewriting the question, or deleting it outright), integrate those answers into the design and remove the resolved questions.
+4. **If the user has rewritten or restructured parts of the document themselves, respect their edits.** Their words are the source of truth — your job is to make the rest of the document consistent with what they wrote, not to revert it to your version. This is the single most important rule of the integration pass.
+5. Surface any new questions the changes expose, either as fresh Open Questions in the document or in chat.
 
 If the user instead says they're happy with the draft as-is, skip the integration pass and move to phase 6.
 
-The `## Open Questions` section in the template is still useful for unresolved sub-decisions you want to flag for the user — defaults, naming, edge-case behavior, exact thresholds. Use it when you have specific questions; the `////` mechanism is for everything else the user wants to comment on.
-
 ### 6. Iterate to signed-off
 
-Loop on phases 4 and 5 until the user says the spec is good. The skill is finished when the spec file exists, the user is satisfied, and the Open Questions section is empty (or removed).
+Loop on phases 4 and 5 until the user says the spec is good. The skill is finished when the spec file exists, the user is satisfied, and the Open Questions section is empty (or all questions have been answered).
 
 Then **stop**. Do not begin implementing. The handoff to coding is a separate decision the user makes — they may want to sit on the spec, share it, schedule the work, or use a different session for the build phase. Offering "want me to start on it?" at the very end is fine; jumping straight in is not.
 
@@ -137,7 +266,7 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Concrete over abstract.** "Adds a `carrierLimit: number` field on `Path`, default 1" beats "introduces capacity tracking on paths."
 - **Reference real names.** File paths, function names, types — they make the spec auditable against the code.
 - **Explain *why*, not just *what*.** A reader six months from now needs to know the reasoning, not just the rule. The why is the part the code alone can't capture.
-- **Right-size the spec.** A small spec is a paragraph and a list. A big spec is a few pages with subsections. Don't pad. Don't include a section heading if there's nothing under it.
+- **Right-size.** See the length calibration above. Don't include a section heading if there's nothing meaningful under it.
 - **Match the project's existing voice.** If the project's docs are narrative prose, write narrative prose. If they're bullet-heavy, lean bulletier. Skim a sibling doc before writing.
 
 ## Common mistakes to avoid
@@ -145,6 +274,8 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Drafting before the user has picked an approach.** The whole point of phase 3 is to fork the conversation early. Writing the spec first and asking later wastes a draft and biases the discussion.
 - **Manufacturing options that aren't real.** If there's only one reasonable approach, say so. A weak Option B insults the user's time.
 - **Editing source code "to verify."** If you need to confirm something works, write it as an Open Question and let the user check. Read-only means read-only.
-- **Skipping the Open Questions section.** It's the cheapest way to surface "I'm not sure about this" without blocking the draft. If you have any doubts, list them.
+- **Treating implementation logistics as design.** Implementation order, test matrices, deployment runbooks, NuGet / dependency change lists — these belong in the build phase, not the spec. If you find yourself writing a "Testing" or "Implementation order" section, ask whether it's making any genuine *design* decision. If not, cut it.
+- **Burying the architectural choices in Design.** A reviewer should be able to find the load-bearing decisions in the Key Decisions section without reading the rest. If the `(new)` and `(diverges)` bullets aren't there, you've made the reviewer's job much harder than it needs to be.
+- **Skipping the Open Questions section.** It's the cheapest way to surface "I'm not sure about this" without blocking the draft. Use it generously, with `Default: X` for each entry.
 - **Leaving Open Questions unresolved at sign-off.** The spec is "done" only when the section is empty (or removed entirely).
 - **Starting to implement after sign-off.** The skill ends at the signed-off spec. Implementation is a separate, deliberate decision by the user.
