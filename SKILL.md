@@ -160,7 +160,7 @@ This is the section that does the most work per line of any in the spec. Treat i
 
 #### Why Open Questions take defaults
 
-Stating `Default: X` after every question lets the user accept by silence. Without defaults, every question is a blocker — the user has to type something on each one before the spec moves forward. With defaults, the spec is shippable as-is, and the user only weighs in on the questions where the default is wrong.
+Stating `Default: X` after every question lets the user accept by silence. Without defaults, every question is a blocker — the user has to type something on each one before the spec moves forward. With defaults, the spec is shippable as-is, and the user only weighs in on the questions where the default is wrong. The default also does double duty in phase 5: it becomes the pre-selected `(Recommended)` option when the questions are put to the user via AskUserQuestion, so accepting it is one click and overriding it is one pick.
 
 #### A worked example (right-sized)
 
@@ -239,17 +239,44 @@ Note what this example *doesn't* have: no Implementation Order section, no Testi
 
 ### 5. Hand off for inline review
 
-Once the draft is on disk, tell the user it's ready and explain how to mark it up. A short, concrete prompt works best — something like:
+Once the draft is on disk, send one handoff message in two parts: a short recap of what the spec proposes, then how to mark it up. The recap is the substance of the message; the markup instructions are a brief procedural close. So the recap is the last thing the user reads about the *proposal itself* before they go mark up the file — it lets them sanity-check the design without opening it and see which parts deserve scrutiny.
 
-> *"Draft is at `docs/specs/<file>.md`. If you want changes, add inline comments anywhere in the file by prefixing a line with `////` — e.g., `//// this section should also cover the migration case`. You can also answer any Open Questions inline, or rewrite/restructure as you like. **Reply when you've added your comments, or just tell me you're happy with the draft as-is.**"*
+**Lead the recap with "The short version of what it proposes:"** Its main content is the spec's **Key decisions** section rendered as *consequences* — the same load-bearing choices, restated as what changes and what to watch rather than as tagged decisions. Keep it to 3–5 bullets, not a table of contents. Aim for this shape:
 
-Then **stop and wait**. Don't keep working on the spec until the user signals back. The whole point of the handoff is that the user is now driving — pestering them or pre-emptively revising defeats it.
+- The load-bearing change — the single source of truth or the central move, and what cascades from it.
+- The concrete edits or new pieces, with real file paths and identifiers.
+- What deliberately *stays the same* — the non-change a reviewer might otherwise worry about.
+- Any downstream consequence worth watching (a perf, throughput, or blast-radius note).
 
-When the user signals they've added comments (typical phrasings: "I've added comments", "take another pass", "look at the file again"):
+If you can't compress the spec into 3–5 bullets like these, the Key decisions section is usually the culprit — either missing the load-bearing choice or padded with implementation detail. So the recap doubles as a cheap check on that section.
+
+Then, in one line, note that Open Questions remain and that you'll put each to the user next with its default pre-selected — so accepting is a click, not homework. A worked example of the whole recap:
+
+> *"The short version of what it proposes:*
+> - *One source of truth — bump `WELLS_PER_STRIP` and `SAMPLES_PER_STRIP` 8→12; scheduler durations, queue/tray math, and the operator-card pills all cascade.*
+> - *Two manual edits — the lone hardcoded `repeat(8, …)` at `continuous.css:1082`, and extending the SVG strip template `#STICK_1` with `HOLE_9..12` (concrete coords in the spec) plus a longer body rect.*
+> - *No structural scheduler change — it's parameterized; the real consequence is longer loading (80→120 s) and reagent-add (20→30 s) steps, flagged as a throughput thing to watch.*
+> - *Tray stays 24 samples → now 2 strips/tray instead of 3.*
+>
+> *Two open questions remain (the longer arm-work; tray = 2 strips) — I'll put each to you next with its default pre-selected, so a click accepts or you can override."*
+
+**Then the markup instructions:**
+
+> *"Draft is at `docs/specs/<file>.md`. If you want changes, add inline comments anywhere in the file by prefixing a line with `////` — e.g., `//// this section should also cover the migration case`. You can also rewrite or restructure as you like. **Reply when you've added your comments, or just tell me you're happy with the draft as-is.**"*
+
+**If the spec has Open Questions, drive them with the AskUserQuestion tool — don't leave them to be noticed in the file.** Right after the handoff message, ask them: one AskUserQuestion call, one question per Open Question, with the spec's `Default: X` as the first option tagged `(Recommended)` and the realistic alternatives as the other options. The user accepts a default in one click, picks an alternative, or types their own via Other. This is the defaults philosophy made literal — silence becomes a click, but the question is surfaced instead of buried. The picker is also how you "stop and wait" here: you're waiting on their answers.
+
+- AskUserQuestion takes at most four questions per call. More than four open questions at handoff is usually a smell — ask the four that most affect the design and fold the rest into the next pass.
+- A question with no real alternative to its default isn't open. Resolve it in the draft instead of asking.
+- The picker doesn't stop the user from also marking up the file. When their answers come back, re-read the spec for `////` comments too, and integrate both.
+
+**If the spec has no Open Questions, skip the picker and just stop and wait** for the user's reply. Either way, don't keep working on the spec until the user signals back — pestering them or pre-emptively revising defeats the handoff.
+
+When the user answers the AskUserQuestion prompt, or signals they've added comments (typical phrasings: "I've added comments", "take another pass", "look at the file again"):
 
 1. Re-read the spec from disk.
 2. Find every line beginning with `////`. Treat each as user feedback attached to its surrounding context. Integrate the feedback into the relevant section, then **remove the `////` line itself** — the marker is review scaffolding, not part of the final document.
-3. If they answered any Open Questions inline (by replacing the default, rewriting the question, or deleting it outright), integrate those answers into the design and remove the resolved questions.
+3. Integrate their Open Question answers — from the AskUserQuestion picker, or answered inline (replacing the default, rewriting the question, or deleting it outright) — into the design, and remove the resolved questions.
 4. **If the user has rewritten or restructured parts of the document themselves, respect their edits.** Their words are the source of truth — your job is to make the rest of the document consistent with what they wrote, not to revert it to your version. This is the single most important rule of the integration pass.
 5. Surface any new questions the changes expose, either as fresh Open Questions in the document or in chat.
 
