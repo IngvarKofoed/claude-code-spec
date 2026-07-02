@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
+description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. Once the user signs off, a fresh-eyes pass surfaces any high-level design decisions worth a second look — clarity, completeness, right-sizing, UX, and reversibility — and quietly fixes low-level defects, before the skill ends. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
 ---
 
 # Spec
@@ -31,7 +31,7 @@ If a question can only be answered by trying something, write the question into 
 
 ## The workflow
 
-Six phases. Don't skip them — even the fast ones serve a purpose.
+Seven phases. Don't skip them — even the fast ones serve a purpose.
 
 ### 1. Understand the request
 
@@ -208,9 +208,10 @@ silently skipped.
 `shouldSend(user)`. Add a guard at the top of `shouldSend`:
 
 ```ts
-const daysSinceLogin =
-  (Date.now() - user.lastLoginAt.getTime()) / 86_400_000;
-if (daysSinceLogin > INACTIVE_DAYS) {
+const inactive =
+  user.lastLoginAt == null ||
+  differenceInDays(Date.now(), user.lastLoginAt) > INACTIVE_DAYS;
+if (inactive) {
   metrics.inc("digest.skipped_inactive");
   return false;
 }
@@ -284,7 +285,31 @@ If the user instead says they're happy with the draft as-is, skip the integratio
 
 ### 6. Iterate to signed-off
 
-Loop on phases 4 and 5 until the user says the spec is good. The skill is finished when the spec file exists, the user is satisfied, and the Open Questions section is empty (or all questions have been answered).
+Loop on phases 4 and 5 until the user says the spec is good — the spec file exists, the user is satisfied, and the Open Questions section is empty (or all questions have been answered). Once they've signed off, run one final review before ending (phase 7).
+
+### 7. Fresh-eyes review
+
+The spec is signed off — but the person who just wrote it is the worst-placed to judge it. By the time you've drafted and revised a spec, every ambiguity in it has already been resolved *in your head*; you read the words and see what you meant, not what they actually say. So before the skill ends, hand the finished spec to a reader who wasn't in the room.
+
+Spawn a subagent as a fresh reviewer and give it **only the spec file path** — not this conversation, not the approach discussion, not the option set you narrowed down in phase 3. That blindness is the whole point: a reviewer carrying your context inherits your interpretation and trips on nothing. Let it read the referenced code and docs read-only — it needs them to judge whether the design reuses what's there or reinvents it — but keep the conversation out of its head.
+
+The reviewer looks for six kinds of problem — all high-level, design-level concerns a fresh reader is uniquely placed to catch, and exactly the kind of thing the user of this skill should get a say in. They fall into three pairs: is it **clear** (ambiguity, completeness), is it **right-sized** (unnecessary complexity, goal-fit), and can you **live with it** (bad UX, reversibility).
+
+- **Ambiguity** — a load-bearing part of the design that a competent implementer could reasonably read two ways and build differently. The test: *would two engineers implement this and both believe they followed the spec, yet ship incompatible things?* "This sentence could be tighter" is a nit; "it's unspecified whether the check runs before or after the write, and the data model differs depending" clears the bar.
+- **Completeness** — the design covers the happy path but leaves a load-bearing case unsaid: failure, empty or malformed input, concurrency, or the existing data and clients at rollout. Where ambiguity is something said two ways, this is something not said at all — and the cold reader is the one most likely to notice, because the author already filled the gap in their head. The test: *is there a case a builder will hit and have to guess at, where guessing wrong changes the result?* Let the trivial omissions go; flag the ones that force a blind decision.
+- **Unnecessary complexity** — machinery the spec introduces that isn't earning its keep: a new table, service, abstraction, or dependency where something simpler or already-present would do, or scope that has crept past the smallest interesting version (phase 1). The test: *can you name a materially simpler design that still meets the stated Goals?* If yes, that's the finding.
+- **Goal-fit** — the design doesn't actually deliver a stated Goal, or spends effort on things no Goal asked for. The test: *walk each Goal and point at the part of the Design that satisfies it, then walk the Design and check each piece traces back to a Goal.* A Goal with nothing behind it is a gap; a slab of Design with no Goal behind it is either a missing Goal or scope to cut (which is really the complexity finding wearing a different hat).
+- **Bad UX** — the experience of whoever *uses the thing being specced* (end user or operator) would be confusing, surprising, or unrecoverable as designed: a destructive action with no confirmation, a silent failure, an error with no path forward, a default that will surprise most users. This is the UX of the feature — not the UX of using this skill.
+- **Reversibility** — the design commits to something expensive or impossible to undo: an irreversible migration, a breaking API or schema change, deleting data, a dependency that's hard to back out. This lens matters most here, at spec-time, because a one-way door costs almost nothing to reconsider now and a great deal once the branch exists. The test: *if this proves wrong after it ships, how hard is it to walk back?* The point isn't to veto it — it's to be sure the user chose the door knowingly, so it's always a decision, never a silent fix.
+
+The reviewer only reads — it returns what it found, and any edits to the spec are yours to make. Handle each finding by one question: **is this a decision, or a fix?**
+
+- **Decisions go to the user.** If resolving it means choosing between plausible alternatives — which of two designs was intended, whether scope has crept too far, which side of a UX tradeoff to take — a human has to make that call. These are the high-level items the review exists to surface. Bring them back as a short list: the category, the spot in the spec, what's at stake, and the options. Hold to critical/high here — the user just signed off, and interrupting that is earned only by something they'd genuinely want to decide before walking away; a pile of things to adjudicate trains them to skip the review. If nothing rises to that bar, say so in one line. Then let *them* choose what changes — reworking an approved design behind their back takes the decision out of their hands. When they pick something, loop back through phase 4 (revise) and phase 5 (re-confirm) for just those points.
+- **Fixes just get made.** If the problem has one obviously-correct resolution and no real tradeoff — a snippet that contradicts a stated decision, a missing null guard, two sections that disagree, an off-by-one in an example — there's nothing for the user to decide. Correct it directly in the spec (the spec file is the one you're allowed to edit), then note what you tidied in a line or two so nothing changes silently. These fixes make the spec match the design the user already approved; they don't re-open it. Forcing the user to adjudicate a mechanical correction wastes the very attention the review is meant to protect.
+
+The line between the two is simply whether more than one resolution is plausible. If a "fix" turns out to need a judgment call, it was never a fix — treat it as a decision and surface it. Either way, don't re-run the full review after every touch-up — it's a final gate, not a treadmill; a quick check that the flagged items are resolved is enough.
+
+If subagents aren't available (e.g., Claude.ai), do the pass inline instead: re-read the spec cold from disk and apply the same split — surface the decisions, fix the mechanical defects. It's weaker — you can't truly un-know the conversation — but reading the written words fresh still catches more than skipping the pass.
 
 Then **stop**. Do not begin implementing. The handoff to coding is a separate decision the user makes — they may want to sit on the spec, share it, schedule the work, or use a different session for the build phase. Offering "want me to start on it?" at the very end is fine; jumping straight in is not.
 
@@ -305,4 +330,6 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Burying the architectural choices in Design.** A reviewer should be able to find the load-bearing decisions in the Key Decisions section without reading the rest. If the `(new)` and `(diverges)` bullets aren't there, you've made the reviewer's job much harder than it needs to be.
 - **Skipping the Open Questions section.** It's the cheapest way to surface "I'm not sure about this" without blocking the draft. Use it generously, with `Default: X` for each entry.
 - **Leaving Open Questions unresolved at sign-off.** The spec is "done" only when the section is empty (or removed entirely).
-- **Starting to implement after sign-off.** The skill ends at the signed-off spec. Implementation is a separate, deliberate decision by the user.
+- **Bringing the user things that aren't decisions.** Phase 7 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
+- **Getting the decide/fix split backwards.** The two failure modes are opposite: making the user adjudicate a null-guard-grade fix, or quietly reworking the *design* under the cover of a "fix." The test is whether more than one resolution is plausible — if it is, it's a decision and belongs to the user.
+- **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec. Implementation is a separate, deliberate decision by the user.
