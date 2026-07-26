@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. Once the user signs off, a fresh-eyes pass surfaces any high-level design decisions worth a second look — clarity, completeness, right-sizing, UX, and reversibility — and quietly fixes low-level defects, before the skill ends. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
+description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. Once the user signs off, a fresh-eyes pass surfaces any high-level design decisions worth a second look — clarity, completeness, right-sizing, UX, and reversibility — and quietly fixes low-level defects. The skill then closes by appending an Implementation strategy section to the spec — single agent, multi-agent, or ultracode, plus how many agents and which model, with a one-clause reason for each — and stops. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
 ---
 
 # Spec
@@ -31,7 +31,7 @@ If a question can only be answered by trying something, write the question into 
 
 ## The workflow
 
-Seven phases. Don't skip them — even the fast ones serve a purpose.
+Eight phases. Don't skip them — even the fast ones serve a purpose.
 
 ### 1. Understand the request
 
@@ -84,6 +84,8 @@ Once an approach is chosen, write the draft to:
 Most specs are **50–200 lines**. Past 300 lines, you're either tackling something genuinely large or you're padding — and the model's bias is strongly toward padding. A reviewer who can't hold the whole spec in their head can't catch architectural problems in it. Resist the urge to include every type definition, every route signature, every migration step. The spec is the *thinking*, not the *implementation*.
 
 If you find yourself approaching 300 lines, ask: is this one spec, or three? Splitting a large feature into multiple smaller specs is usually right.
+
+(The Implementation strategy appendix added in phase 8 doesn't count against this budget — it's a handful of lines and it isn't design.)
 
 #### Template
 
@@ -150,6 +152,11 @@ the spec is prose, not an implementation.>
 <Only if approaches were discussed and rejected. Two or three lines
 each is plenty — the point is not to re-litigate, it's to record why
 this path was taken.>
+
+## Implementation strategy
+
+<Added in phase 8, after sign-off — not part of the initial draft.
+Strategy, agent count, and model, in 3–6 lines. See phase 8.>
 ```
 
 #### Why "Key decisions" matters
@@ -234,9 +241,17 @@ are treated as inactive and skipped.
   `shouldSend`. Rejected — one place beats two.
 - **Soft-delete inactive users.** Out of scope; we may still need
   to email them for account purposes (password expiry, etc).
+
+## Implementation strategy
+
+*Not part of the design — a starting point for whoever builds this.*
+
+- **Single agent, Opus 5.** Two files (`digest.ts` and its test), one
+  code path, and the metrics counter has to land alongside the guard
+  — nothing here splits into independent streams.
 ````
 
-Note what this example *doesn't* have: no Implementation Order section, no Testing section, no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions.
+Note what this example *doesn't* have: no Implementation Order section, no Testing section, no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions. The Implementation strategy appendix is the one exception, and only because it's a launch instruction rather than a re-derivable plan; it's appended after sign-off, in phase 8.
 
 ### 5. Hand off for inline review
 
@@ -311,6 +326,76 @@ The line between the two is simply whether more than one resolution is plausible
 
 If subagents aren't available (e.g., Claude.ai), do the pass inline instead: re-read the spec cold from disk and apply the same split — surface the decisions, fix the mechanical defects. It's weaker — you can't truly un-know the conversation — but reading the written words fresh still catches more than skipping the pass.
 
+### 8. Call the implementation strategy, then stop
+
+The spec says what to build. The last thing it needs is a starting point for *how* — which agent strategy, how many agents, which model. The user is about to decide whether to run this in one session, fan it out, or throw an orchestrated workflow at it, and you've just spent the whole spec phase reading the exact code it touches. Nobody is better placed to guess.
+
+Append a short **Implementation strategy** section to the end of the signed-off spec, then echo its headline in chat. It goes in the file rather than staying in the conversation because the build often happens in a different session — a chat line is gone by then; a section is still there when someone opens the spec to start work.
+
+#### Strategy
+
+One of three. The default is single agent; escalate on evidence, not ambition.
+
+- **Single agent** — one session, working sequentially. The change is a coherent thread: a handful of files, shared context, edits that build on each other. **Most specs land here.**
+- **Multi-agent** — parallel subagents. The work splits into streams that genuinely don't touch each other's files, or it's sweep-shaped: the same mechanical transform across many call sites. The test: *could two people build this at once without a merge conflict or a hallway conversation?*
+- **Ultracode** — orchestrated fan-out with adversarial verification. Reserved for when a wrong implementation is expensive and hard to walk back: a `(breaking)` or irreversible Key decision, a data-integrity or security surface, or correctness that can't be eyeballed from a diff. It costs a great deal of tokens, so it has to earn them.
+
+The spec's own **Key decisions** tags are the cheapest signal available. A wall of `(reuses)` / `(extends)` across three files is single-agent work. `(new)` repeated across independent subsystems suggests streams. `(breaking)`, or a migration that can't be undone, is what pushes toward ultracode.
+
+#### Agent count
+
+For a single agent, skip it. For multi-agent, the count *is* the number of independent streams you can actually name — say what each one owns, in real file paths, and whether an integration pass is needed at the end. Two to four is typical. If you can't name what agent #4 owns without overlapping agent #2, there are three streams, not four.
+
+For ultracode, describe the shape rather than a headcount ("three finders, then adversarial verify per finding"). The harness caps how many agents run at once, so a bigger number buys queueing, not speed.
+
+#### Model
+
+The principle outlasts the names: **pick the cheapest tier that clears the work's difficulty bar.** As of writing, that means:
+
+- **Opus 5** — the default for implementation. Multi-file features, refactors, anything where the builder has to *interpret* a `(new)` or `(diverges)` decision rather than transcribe it.
+- **Sonnet 5** — close to Opus on coding and agentic work for less. The right default for the *workers* in a multi-agent fan-out, where the model cost is paid N times over.
+- **Haiku 4.5** — well-specified mechanical transforms with no judgment in them: renames, mass call-site updates, boilerplate. Its context window is much smaller than the others', so don't hand it work that needs to hold a lot of the codebase at once.
+- **Fable 5** — the hardest, longest-horizon work: an overnight autonomous run, or a problem where it's genuinely unclear whether the approach is tractable. It costs materially more than Opus; reserve it for that.
+
+Mixing tiers inside one strategy is normal and usually right — Opus on the stream carrying the design risk, Sonnet or Haiku on the mechanical ones. Say which agent gets which.
+
+#### The section
+
+Append it below Alternatives considered. Keep it to 3–6 lines — it's a starting point, not a plan, and it doesn't count against the spec's length budget.
+
+````markdown
+## Implementation strategy
+
+*Not part of the design — a starting point for whoever builds this.*
+
+- **Single agent, Opus 5.** Four files on one code path, and the edits
+  depend on each other — parallelism would only produce conflicts.
+````
+
+A multi-agent one, showing what each agent owns and why the tiers differ:
+
+````markdown
+## Implementation strategy
+
+*Not part of the design — a starting point for whoever builds this.*
+
+- **Multi-agent, 3 streams.** One agent per adapter —
+  `adapters/stripe.ts`, `adapters/paypal.ts`, `adapters/adyen.ts` —
+  which share only the `PaymentAdapter` interface. Then a single
+  integration pass on `router.ts`.
+- **Sonnet 5 for the adapters, Opus 5 for the integration pass.** The
+  adapters transcribe a settled interface; the router is where the
+  `(diverges)` retry decision has to be interpreted.
+````
+
+Then echo the headline in chat in one line, so the user sees the call without reopening the file:
+
+> *"Implementation strategy: **single agent on Opus 5** — four files on one code path, and the edits depend on each other. It's written into the spec as a closing section."*
+
+**Resist inflating this.** The failure mode is recommending multi-agent or ultracode because they sound thorough, or reaching for the top model tier by reflex. Parallelism applied to non-parallel work buys merge conflicts and agents guessing at each other's context; ultracode on a four-file change just burns tokens. If it's a single-agent Sonnet job, say so.
+
+**This one appendix is not a door for the others.** Implementation order, test matrices, deployment runbooks, and dependency lists still don't belong in the spec. The strategy section earns its place because it's a launch instruction the next session can't re-derive from the design — everything on that list can be.
+
 Then **stop**. Do not begin implementing. The handoff to coding is a separate decision the user makes — they may want to sit on the spec, share it, schedule the work, or use a different session for the build phase. Offering "want me to start on it?" at the very end is fine; jumping straight in is not.
 
 ## Style guidelines for the spec itself
@@ -332,4 +417,6 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Leaving Open Questions unresolved at sign-off.** The spec is "done" only when the section is empty (or removed entirely).
 - **Bringing the user things that aren't decisions.** Phase 7 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
 - **Getting the decide/fix split backwards.** The two failure modes are opposite: making the user adjudicate a null-guard-grade fix, or quietly reworking the *design* under the cover of a "fix." The test is whether more than one resolution is plausible — if it is, it's a decision and belongs to the user.
-- **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec. Implementation is a separate, deliberate decision by the user.
+- **Inflating the strategy call.** Phase 8 defaults to single agent and escalates only on evidence — genuinely independent streams for multi-agent, a genuinely expensive-to-undo change for ultracode. The same applies to the model: pick the cheapest tier that clears the bar. Reaching for the biggest hammer because it sounds thorough costs the user tokens and buys them merge conflicts.
+- **Letting the strategy appendix grow into a plan.** It's 3–6 lines: strategy, agent count, model, and why. The moment it starts listing implementation order or test cases, it's become the build plan the spec deliberately doesn't contain — and it drags the other logistics sections back in with it.
+- **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec plus the strategy appendix. Implementation is a separate, deliberate decision by the user.
