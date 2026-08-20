@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. Once the user signs off, a fresh-eyes pass surfaces any high-level design decisions worth a second look — clarity, completeness, right-sizing, UX, and reversibility — and quietly fixes low-level defects. The skill then closes by appending an Implementation strategy section to the spec — single agent, multi-agent, or ultracode, plus how many agents and which model, with a one-clause reason for each — and stops. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
+description: Use this skill to draft a written specification (design doc, RFC, or feature spec) BEFORE any code is written. The spec phase is strictly read-only — research the codebase freely, but the only file the agent may write or edit is the spec markdown itself. No source code, no config, no other artifacts. The skill presents 2–3 design approaches in conversation for the user to choose between, then writes a draft to docs/specs/YYYY-MM-DD-<slug>.md and asks the user to mark it up with inline `////` comments, after which the agent re-reads and integrates the comments. Sign-off is an explicit gate: the agent asks for it directly and never infers it from answered questions or partial praise. Only after that explicit sign-off does the agent write the spec's Outcome section (short bullets: what you get, and how to verify it), run a fresh-eyes pass that surfaces any high-level design decisions worth a second look — clarity, completeness, right-sizing, UX, and reversibility — and quietly fixes low-level defects, and close by appending an Implementation strategy section to the spec — single agent, multi-agent, or ultracode, plus how many agents and which model, with a one-clause reason for each — then stop. This skill is primarily user-invoked via /spec — only auto-trigger on unambiguous explicit requests like "write a spec for X", "draft a design doc for Y", or "write up an RFC". Do NOT auto-trigger on general exploratory phrasing ("let's plan X", "think through Y", "before we start coding") — the user prefers to invoke this skill explicitly when they want it.
 ---
 
 # Spec
@@ -31,7 +31,7 @@ If a question can only be answered by trying something, write the question into 
 
 ## The workflow
 
-Eight phases. Don't skip them — even the fast ones serve a purpose.
+Nine phases. Don't skip them — even the fast ones serve a purpose.
 
 ### 1. Understand the request
 
@@ -85,7 +85,7 @@ Most specs are **50–200 lines**. Past 300 lines, you're either tackling someth
 
 If you find yourself approaching 300 lines, ask: is this one spec, or three? Splitting a large feature into multiple smaller specs is usually right.
 
-(The Implementation strategy appendix added in phase 8 doesn't count against this budget — it's a handful of lines and it isn't design.)
+(The post-sign-off additions — the Outcome section in phase 7 and the Implementation strategy appendix in phase 9 — don't count against this budget. They're a handful of lines each, and they aren't design.)
 
 #### Template
 
@@ -96,6 +96,27 @@ Use this as a starting skeleton. Adapt section names and depth — don't pad wit
 
 <One-paragraph summary: what this feature is, why it exists, and the
 chosen approach in one breath.>
+
+## Outcome
+
+<Added in phase 7, right after sign-off — not part of the initial
+draft, though it lands here at the top of the finished spec. The
+reader's fast answer to "what do I get, and how do I know it
+works?" Two short bullet lists, 2–4 bullets each. Keep both
+observable from outside the code — capabilities and checks, not
+implementation steps. This is not a test plan: each verify bullet is
+an action anyone can take plus the result they should see, not a
+test matrix.>
+
+**What you get:**
+
+- <Concrete, user-visible capability or change that exists once this
+  ships>
+
+**How to verify:**
+
+- <An action and the observable result that confirms the
+  implementation matches the spec>
 
 ## Key decisions
 
@@ -155,9 +176,15 @@ this path was taken.>
 
 ## Implementation strategy
 
-<Added in phase 8, after sign-off — not part of the initial draft.
-Strategy, agent count, and model, in 3–6 lines. See phase 8.>
+<Added in phase 9, after sign-off — not part of the initial draft.
+Strategy, agent count, and model, in 3–6 lines. See phase 9.>
 ```
+
+#### Why Outcome is written last but placed first
+
+The summary says what the feature is; Outcome says what you can point at once it exists. "What you get" is the deliverable in user-visible terms, and "How to verify" is the acceptance check — action plus expected observation. Together they give whoever builds the spec a finish line that isn't "the diff looks plausible."
+
+It's *placed* at the top because it's the first thing a reader of the finished spec needs — but it's *written* only after sign-off (phase 7), because it's derived from the design: writing it earlier means rewriting it on every iteration, or worse, letting stale bullets contradict the design the user actually approved. Keep the verify bullets black-box: the moment they name test files or frameworks, they've become the Testing section the spec deliberately doesn't contain.
 
 #### Why "Key decisions" matters
 
@@ -171,7 +198,7 @@ Stating `Default: X` after every question lets the user accept by silence. Witho
 
 #### A worked example (right-sized)
 
-A complete spec for a small feature, demonstrating the shape and density that "right-sized" means in practice. ~55 lines, all sections present, none padded.
+A complete spec for a small feature, demonstrating the shape and density that "right-sized" means in practice. ~70 lines, all sections present, none padded.
 
 ````markdown
 # Skip inactive users in the daily digest
@@ -180,6 +207,21 @@ Add a guard to the daily-digest job so users who haven't logged in
 for 30 days don't receive the email. The cutoff is checked at send
 time against `users.lastLoginAt`; users below the threshold are
 silently skipped.
+
+## Outcome
+
+**What you get:**
+
+- Users with no login in the last 30 days stop receiving the
+  daily digest.
+- A daily metric of how many users were skipped for inactivity.
+
+**How to verify:**
+
+- Set a test user's `lastLoginAt` 31+ days back, run the digest
+  job: no email arrives and no `digest_sends` row is written.
+- The same run increments `digest.skipped_inactive` by one.
+- A user who logged in yesterday still receives the digest.
 
 ## Key decisions
 
@@ -251,7 +293,7 @@ are treated as inactive and skipped.
   — nothing here splits into independent streams.
 ````
 
-Note what this example *doesn't* have: no Implementation Order section, no Testing section, no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions. The Implementation strategy appendix is the one exception, and only because it's a launch instruction rather than a re-derivable plan; it's appended after sign-off, in phase 8.
+Note what this example *doesn't* have: no Implementation Order section, no Testing section (the Outcome verify bullets are black-box acceptance checks, not a test plan), no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions. The Outcome section and the Implementation strategy appendix are the two post-sign-off exceptions — Outcome because it's the acceptance contract for the design, the strategy because it's a launch instruction rather than a re-derivable plan; both are appended after sign-off, in phases 7 and 9.
 
 ### 5. Hand off for inline review
 
@@ -298,11 +340,31 @@ When the user answers the AskUserQuestion prompt, or signals they've added comme
 
 If the user instead says they're happy with the draft as-is, skip the integration pass and move to phase 6.
 
-### 6. Iterate to signed-off
+### 6. Iterate to explicit sign-off
 
-Loop on phases 4 and 5 until the user says the spec is good — the spec file exists, the user is satisfied, and the Open Questions section is empty (or all questions have been answered). Once they've signed off, run one final review before ending (phase 7).
+Loop on phases 4 and 5 until the spec is ready: comments integrated, the user out of change requests, and the Open Questions section empty (or every question answered).
 
-### 7. Fresh-eyes review
+Ready is not signed off. Sign-off is **explicit, or it hasn't happened** — the user saying yes to the whole spec, in so many words. When you believe the spec is ready, ask for it directly: one AskUserQuestion — *"Do you sign off on this spec?"* — with "Signed off" and "Not yet — more changes" as the options (an Other answer is a change request). A plain "do you sign off?" in chat works too if the picker isn't available.
+
+Never infer sign-off from:
+
+- answering the last Open Question, or clicking through the defaults in the picker;
+- praise aimed at a part of the spec ("nice", "that section looks good") — especially when it arrives alongside another change request;
+- silence, or the user moving the conversation to something else.
+
+Everything that follows — the Outcome section (phase 7), the fresh-eyes review (phase 8), the Implementation strategy (phase 9) — is gated on that explicit yes. Until it's given, keep iterating or ask again; don't slide forward.
+
+### 7. Write the Outcome section
+
+The design is frozen — now capture what it delivers. Insert the **Outcome** section at the top of the spec, right after the summary paragraph and before Key decisions: 2–4 bullets of **What you get**, then 2–4 of **How to verify**, per the template.
+
+It's written now rather than in the draft because it's derived from the design — every iteration in phases 4–6 would have meant rewriting it, and stale bullets that contradict the approved design are worse than none. Derive it fresh from the signed-off text; don't recycle the Goals section — Goals state intent, Outcome states what you can point at and check.
+
+Keep the verify bullets black-box: an action anyone can take plus the observable result. No test files, no frameworks — that's the build phase's job.
+
+This step needs no user round-trip. It restates the approved design rather than extending it, and the fresh-eyes reviewer reads it cold next.
+
+### 8. Fresh-eyes review
 
 The spec is signed off — but the person who just wrote it is the worst-placed to judge it. By the time you've drafted and revised a spec, every ambiguity in it has already been resolved *in your head*; you read the words and see what you meant, not what they actually say. So before the skill ends, hand the finished spec to a reader who wasn't in the room.
 
@@ -313,20 +375,20 @@ The reviewer looks for six kinds of problem — all high-level, design-level con
 - **Ambiguity** — a load-bearing part of the design that a competent implementer could reasonably read two ways and build differently. The test: *would two engineers implement this and both believe they followed the spec, yet ship incompatible things?* "This sentence could be tighter" is a nit; "it's unspecified whether the check runs before or after the write, and the data model differs depending" clears the bar.
 - **Completeness** — the design covers the happy path but leaves a load-bearing case unsaid: failure, empty or malformed input, concurrency, or the existing data and clients at rollout. Where ambiguity is something said two ways, this is something not said at all — and the cold reader is the one most likely to notice, because the author already filled the gap in their head. The test: *is there a case a builder will hit and have to guess at, where guessing wrong changes the result?* Let the trivial omissions go; flag the ones that force a blind decision.
 - **Unnecessary complexity** — machinery the spec introduces that isn't earning its keep: a new table, service, abstraction, or dependency where something simpler or already-present would do, or scope that has crept past the smallest interesting version (phase 1). The test: *can you name a materially simpler design that still meets the stated Goals?* If yes, that's the finding.
-- **Goal-fit** — the design doesn't actually deliver a stated Goal, or spends effort on things no Goal asked for. The test: *walk each Goal and point at the part of the Design that satisfies it, then walk the Design and check each piece traces back to a Goal.* A Goal with nothing behind it is a gap; a slab of Design with no Goal behind it is either a missing Goal or scope to cut (which is really the complexity finding wearing a different hat).
+- **Goal-fit** — the design doesn't actually deliver a stated Goal, or spends effort on things no Goal asked for. The test: *walk each Goal and point at the part of the Design that satisfies it, then walk the Design and check each piece traces back to a Goal.* A Goal with nothing behind it is a gap; a slab of Design with no Goal behind it is either a missing Goal or scope to cut (which is really the complexity finding wearing a different hat). The Outcome bullets (phase 7) are cheap anchors for this walk — check that they trace to the Design too.
 - **Bad UX** — the experience of whoever *uses the thing being specced* (end user or operator) would be confusing, surprising, or unrecoverable as designed: a destructive action with no confirmation, a silent failure, an error with no path forward, a default that will surprise most users. This is the UX of the feature — not the UX of using this skill.
 - **Reversibility** — the design commits to something expensive or impossible to undo: an irreversible migration, a breaking API or schema change, deleting data, a dependency that's hard to back out. This lens matters most here, at spec-time, because a one-way door costs almost nothing to reconsider now and a great deal once the branch exists. The test: *if this proves wrong after it ships, how hard is it to walk back?* The point isn't to veto it — it's to be sure the user chose the door knowingly, so it's always a decision, never a silent fix.
 
 The reviewer only reads — it returns what it found, and any edits to the spec are yours to make. Handle each finding by one question: **is this a decision, or a fix?**
 
-- **Decisions go to the user.** If resolving it means choosing between plausible alternatives — which of two designs was intended, whether scope has crept too far, which side of a UX tradeoff to take — a human has to make that call. These are the high-level items the review exists to surface. Bring them back as a short list: the category, the spot in the spec, what's at stake, and the options. Hold to critical/high here — the user just signed off, and interrupting that is earned only by something they'd genuinely want to decide before walking away; a pile of things to adjudicate trains them to skip the review. If nothing rises to that bar, say so in one line. Then let *them* choose what changes — reworking an approved design behind their back takes the decision out of their hands. When they pick something, loop back through phase 4 (revise) and phase 5 (re-confirm) for just those points.
+- **Decisions go to the user.** If resolving it means choosing between plausible alternatives — which of two designs was intended, whether scope has crept too far, which side of a UX tradeoff to take — a human has to make that call. These are the high-level items the review exists to surface. Bring them back as a short list: the category, the spot in the spec, what's at stake, and the options. Hold to critical/high here — the user just signed off, and interrupting that is earned only by something they'd genuinely want to decide before walking away; a pile of things to adjudicate trains them to skip the review. If nothing rises to that bar, say so in one line. Then let *them* choose what changes — reworking an approved design behind their back takes the decision out of their hands. When they pick something, loop back through phase 4 (revise) and phase 5 (re-confirm) for just those points, and keep the Outcome bullets in sync with whatever moved.
 - **Fixes just get made.** If the problem has one obviously-correct resolution and no real tradeoff — a snippet that contradicts a stated decision, a missing null guard, two sections that disagree, an off-by-one in an example — there's nothing for the user to decide. Correct it directly in the spec (the spec file is the one you're allowed to edit), then note what you tidied in a line or two so nothing changes silently. These fixes make the spec match the design the user already approved; they don't re-open it. Forcing the user to adjudicate a mechanical correction wastes the very attention the review is meant to protect.
 
 The line between the two is simply whether more than one resolution is plausible. If a "fix" turns out to need a judgment call, it was never a fix — treat it as a decision and surface it. Either way, don't re-run the full review after every touch-up — it's a final gate, not a treadmill; a quick check that the flagged items are resolved is enough.
 
 If subagents aren't available (e.g., Claude.ai), do the pass inline instead: re-read the spec cold from disk and apply the same split — surface the decisions, fix the mechanical defects. It's weaker — you can't truly un-know the conversation — but reading the written words fresh still catches more than skipping the pass.
 
-### 8. Call the implementation strategy, then stop
+### 9. Call the implementation strategy, then stop
 
 The spec says what to build. The last thing it needs is a starting point for *how* — which agent strategy, how many agents, which model. The user is about to decide whether to run this in one session, fan it out, or throw an orchestrated workflow at it, and you've just spent the whole spec phase reading the exact code it touches. Nobody is better placed to guess.
 
@@ -411,12 +473,14 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Drafting before the user has picked an approach.** The whole point of phase 3 is to fork the conversation early. Writing the spec first and asking later wastes a draft and biases the discussion.
 - **Manufacturing options that aren't real.** If there's only one reasonable approach, say so. A weak Option B insults the user's time.
 - **Editing source code "to verify."** If you need to confirm something works, write it as an Open Question and let the user check. Read-only means read-only.
-- **Treating implementation logistics as design.** Implementation order, test matrices, deployment runbooks, NuGet / dependency change lists — these belong in the build phase, not the spec. If you find yourself writing a "Testing" or "Implementation order" section, ask whether it's making any genuine *design* decision. If not, cut it.
+- **Treating implementation logistics as design.** Implementation order, test matrices, deployment runbooks, NuGet / dependency change lists — these belong in the build phase, not the spec. If you find yourself writing a "Testing" or "Implementation order" section, ask whether it's making any genuine *design* decision. If not, cut it. (The Outcome section's "How to verify" bullets are the deliberate exception: black-box acceptance checks, not a test plan — the moment they name test files or frameworks, they've crossed the line.)
 - **Burying the architectural choices in Design.** A reviewer should be able to find the load-bearing decisions in the Key Decisions section without reading the rest. If the `(new)` and `(diverges)` bullets aren't there, you've made the reviewer's job much harder than it needs to be.
 - **Skipping the Open Questions section.** It's the cheapest way to surface "I'm not sure about this" without blocking the draft. Use it generously, with `Default: X` for each entry.
 - **Leaving Open Questions unresolved at sign-off.** The spec is "done" only when the section is empty (or removed entirely).
-- **Bringing the user things that aren't decisions.** Phase 7 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
+- **Inferring sign-off.** Answering the last Open Question, clicking picker defaults, or praising a section is not approval of the spec. Sign-off is the user saying yes to the whole document, explicitly — ask for it (phase 6), and don't start phases 7–9 without it.
+- **Writing the Outcome section or Implementation strategy before sign-off.** Both are derived from the settled design; written early they get rewritten every iteration or, worse, drift into contradicting what the user approved. The draft ends at Alternatives considered — the rest is post-sign-off.
+- **Bringing the user things that aren't decisions.** Phase 8 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
 - **Getting the decide/fix split backwards.** The two failure modes are opposite: making the user adjudicate a null-guard-grade fix, or quietly reworking the *design* under the cover of a "fix." The test is whether more than one resolution is plausible — if it is, it's a decision and belongs to the user.
-- **Inflating the strategy call.** Phase 8 defaults to single agent and escalates only on evidence — genuinely independent streams for multi-agent, a genuinely expensive-to-undo change for ultracode. The same applies to the model: pick the cheapest tier that clears the bar. Reaching for the biggest hammer because it sounds thorough costs the user tokens and buys them merge conflicts.
+- **Inflating the strategy call.** Phase 9 defaults to single agent and escalates only on evidence — genuinely independent streams for multi-agent, a genuinely expensive-to-undo change for ultracode. The same applies to the model: pick the cheapest tier that clears the bar. Reaching for the biggest hammer because it sounds thorough costs the user tokens and buys them merge conflicts.
 - **Letting the strategy appendix grow into a plan.** It's 3–6 lines: strategy, agent count, model, and why. The moment it starts listing implementation order or test cases, it's become the build plan the spec deliberately doesn't contain — and it drags the other logistics sections back in with it.
-- **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec plus the strategy appendix. Implementation is a separate, deliberate decision by the user.
+- **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec plus the Outcome section and strategy appendix. Implementation is a separate, deliberate decision by the user.
