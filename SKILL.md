@@ -290,7 +290,7 @@ are treated as inactive and skipped.
 
 - **Single agent, Opus 5.** Two files (`digest.ts` and its test), one
   code path, and the metrics counter has to land alongside the guard
-  — nothing here splits into independent streams.
+  — there's no chunk a subagent could take without re-reading the rest.
 ````
 
 Note what this example *doesn't* have: no Implementation Order section, no Testing section (the Outcome verify bullets are black-box acceptance checks, not a test plan), no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions. The Outcome section and the Implementation strategy appendix are the two post-sign-off exceptions — Outcome because it's the acceptance contract for the design, the strategy because it's a launch instruction rather than a re-derivable plan; both are appended after sign-off, in phases 7 and 9.
@@ -396,17 +396,19 @@ Append a short **Implementation strategy** section to the end of the signed-off 
 
 #### Strategy
 
-One of three. The default is single agent; escalate on evidence, not ambition.
+One of three, picked on the shape of the work. Neither single agent nor multi-agent is the safe default; they fail in opposite directions. Fan out a tightly coupled change and the agents conflict and guess at each other's context. Keep a many-part build in one session and it grinds through a single context window, pays the lead's model rate for mechanical work, and has lost the early decisions to compaction by the end.
 
-- **Single agent** — one session, working sequentially. The change is a coherent thread: a handful of files, shared context, edits that build on each other. **Most specs land here.**
-- **Multi-agent** — parallel subagents. The work splits into streams that genuinely don't touch each other's files, or it's sweep-shaped: the same mechanical transform across many call sites. The test: *could two people build this at once without a merge conflict or a hallway conversation?*
+- **Single agent** — one session, working sequentially. The change is one coherent thread: a few files on one code path, each edit building on the last, nothing that could be handed off without first explaining most of the rest.
+- **Multi-agent** — the implementer session leads and delegates bounded chunks to subagents. Usually it builds the core itself (the part that interprets a `(new)` or `(diverges)` decision) and hands off the rest; when the streams are fully independent, it may only coordinate and integrate. Chunks run in parallel when they don't touch each other's files, and one after another when one builds on the last; both count. A chunk qualifies when it has a settled input (an interface or decision that the spec, or the lead's first step, pins down), its own files, and a check for done. Typical chunks: one per adapter or module behind a shared interface; the call-site sweep after a signature change; the UI over a finished backend; tests written against the Outcome bullets. The test: *can you name one chunk a fresh agent could finish from the spec plus a one-paragraph brief?*
 - **Ultracode** — orchestrated fan-out with adversarial verification. Reserved for when a wrong implementation is expensive and hard to walk back: a `(breaking)` or irreversible Key decision, a data-integrity or security surface, or correctness that can't be eyeballed from a diff. It costs a great deal of tokens, so it has to earn them.
 
-The spec's own **Key decisions** tags are the cheapest signal available. A wall of `(reuses)` / `(extends)` across three files is single-agent work. `(new)` repeated across independent subsystems suggests streams. `(breaking)`, or a migration that can't be undone, is what pushes toward ultracode.
+Breadth is a signal of its own. A spec whose Design spans more than one layer or subsystem (backend and UI, a new module and its call sites, an interface and its implementations) almost always has a chunk that passes the multi-agent test. One that stays inside a single module rarely does.
+
+The spec's own **Key decisions** tags are the cheapest signal available. A wall of `(reuses)` / `(extends)` on one code path is single-agent work. `(new)` across independent subsystems is a chunk per subsystem. A `(breaking)` signature change whose callers all live in this repo is a call-site sweep, a natural cheap-model chunk. A `(breaking)` contract other systems depend on, or a migration that can't be undone, is what pushes toward ultracode.
 
 #### Agent count
 
-For a single agent, skip it. For multi-agent, the count *is* the number of independent streams you can actually name — say what each one owns, in real file paths, and whether an integration pass is needed at the end. Two to four is typical. If you can't name what agent #4 owns without overlapping agent #2, there are three streams, not four.
+For a single agent, skip it. For multi-agent, the count *is* the number of chunks you can actually name. Say what each one owns, in real file paths, whether the chunks run in parallel or in sequence, and what the lead keeps for itself (the core, the integration pass, or both). One delegated chunk is a legitimate answer; two to four is typical. If you can't name what agent #4 owns without overlapping agent #2, there are three chunks, not four.
 
 For ultracode, describe the shape rather than a headcount ("three finders, then adversarial verify per finding"). The harness caps how many agents run at once, so a bigger number buys queueing, not speed.
 
@@ -415,7 +417,7 @@ For ultracode, describe the shape rather than a headcount ("three finders, then 
 The principle outlasts the names: **pick the cheapest tier that clears the work's difficulty bar.** As of writing, that means:
 
 - **Opus 5** — the default for implementation. Multi-file features, refactors, anything where the builder has to *interpret* a `(new)` or `(diverges)` decision rather than transcribe it.
-- **Sonnet 5** — close to Opus on coding and agentic work for less. The right default for the *workers* in a multi-agent fan-out, where the model cost is paid N times over.
+- **Sonnet 5** — close to Opus on coding and agentic work for less. The right default for delegated chunks in a multi-agent build, where the model cost is paid N times over.
 - **Haiku 4.5** — well-specified mechanical transforms with no judgment in them: renames, mass call-site updates, boilerplate. Its context window is much smaller than the others', so don't hand it work that needs to hold a lot of the codebase at once.
 - **Fable 5** — the hardest, longest-horizon work: an overnight autonomous run, or a problem where it's genuinely unclear whether the approach is tractable. It costs materially more than Opus; reserve it for that.
 
@@ -450,11 +452,28 @@ A multi-agent one, showing what each agent owns and why the tiers differ:
   `(diverges)` retry decision has to be interpreted.
 ````
 
+The more common multi-agent shape: the lead builds the core, then hands off what hangs off it:
+
+````markdown
+## Implementation strategy
+
+*Not part of the design — a starting point for whoever builds this.*
+
+- **Multi-agent: the lead plus 2 chunks.** The lead builds the `(new)`
+  rotation core in `auth/session.ts` and settles `rotate()`'s
+  signature. Then, in parallel: one subagent moves the 23 callers in
+  `routes/` to `rotate()`, another builds the toggle in
+  `web/settings/` against it.
+- **Opus 5 lead, Haiku 4.5 for the call sites, Sonnet 5 for the
+  toggle.** The sweep is mechanical; the toggle needs judgment but no
+  design calls.
+````
+
 Then echo the headline in chat in one line, so the user sees the call without reopening the file:
 
 > *"Implementation strategy: **single agent on Opus 5** — four files on one code path, and the edits depend on each other. It's written into the spec as a closing section."*
 
-**Resist inflating this.** The failure mode is recommending multi-agent or ultracode because they sound thorough, or reaching for the top model tier by reflex. Parallelism applied to non-parallel work buys merge conflicts and agents guessing at each other's context; ultracode on a four-file change just burns tokens. If it's a single-agent Sonnet job, say so.
+**Call it in both directions.** Don't inflate: multi-agent on a four-file thread buys merge conflicts and agents guessing at each other's context, ultracode on a small change just burns tokens, and the top model tier by reflex is waste. If it's a single-agent Sonnet job, say so. But don't shrink by reflex either. In practice the pull toward "single agent" is the stronger one, because it feels safe, and it isn't free: a long build in one context gets slower, costlier and less sharp as it goes. If you can name a chunk that passes the multi-agent test, call multi-agent.
 
 **This one appendix is not a door for the others.** Implementation order, test matrices, deployment runbooks, and dependency lists still don't belong in the spec. The strategy section earns its place because it's a launch instruction the next session can't re-derive from the design — everything on that list can be.
 
@@ -481,6 +500,6 @@ Then **stop**. Do not begin implementing. The handoff to coding is a separate de
 - **Writing the Outcome section or Implementation strategy before sign-off.** Both are derived from the settled design; written early they get rewritten every iteration or, worse, drift into contradicting what the user approved. The draft ends at Alternatives considered — the rest is post-sign-off.
 - **Bringing the user things that aren't decisions.** Phase 8 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
 - **Getting the decide/fix split backwards.** The two failure modes are opposite: making the user adjudicate a null-guard-grade fix, or quietly reworking the *design* under the cover of a "fix." The test is whether more than one resolution is plausible — if it is, it's a decision and belongs to the user.
-- **Inflating the strategy call.** Phase 9 defaults to single agent and escalates only on evidence — genuinely independent streams for multi-agent, a genuinely expensive-to-undo change for ultracode. The same applies to the model: pick the cheapest tier that clears the bar. Reaching for the biggest hammer because it sounds thorough costs the user tokens and buys them merge conflicts.
+- **Calling the strategy by reflex.** Phase 9 picks on the shape of the work, not a default. Multi-agent on a tightly coupled thread buys merge conflicts; single agent on a build with a nameable, self-contained chunk leaves the lead grinding through one context at its own model rate. Ultracode still needs a genuinely expensive-to-undo change, and the model is still the cheapest tier that clears the bar.
 - **Letting the strategy appendix grow into a plan.** It's 3–6 lines: strategy, agent count, model, and why. The moment it starts listing implementation order or test cases, it's become the build plan the spec deliberately doesn't contain — and it drags the other logistics sections back in with it.
 - **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec plus the Outcome section and strategy appendix. Implementation is a separate, deliberate decision by the user.
