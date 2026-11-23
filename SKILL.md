@@ -435,12 +435,12 @@ For ultracode, describe the shape rather than a headcount ("three finders, then 
 
 ### Model
 
-The principle outlasts the names: **pick the cheapest tier that clears the work's difficulty bar.** As of 2026-11, that means (prices per million input/output tokens):
+The principle outlasts the names: **pick the cheapest tier that clears the work's difficulty bar.** As of 2026-11, that means (prices in USD per million input / output tokens):
 
-- **Opus 5.5** ($4/$20) — the default for implementation. Multi-file features, refactors, anything where the builder has to *interpret* a `(new)` or `(diverges)` decision rather than transcribe it.
-- **Sonnet 5.5** ($2/$10) — close to Opus on coding and agentic work for half the price. The right default for delegated chunks in a multi-agent build, where the model cost is paid N times over.
-- **Haiku 5.5** ($0.10/$0.50, rising to $0.50/$2.50 for prompts past 100K tokens) — well-specified mechanical transforms with no judgment in them: renames, mass call-site updates, boilerplate.
-- **Fable 5.2** ($8/$40, twice Opus) — the hardest, longest-horizon work: an overnight autonomous run, or a problem where it's genuinely unclear whether the approach is tractable. Reserve it for that.
+- **Opus 5.5** (4 / 20) — the default for implementation. Multi-file features, refactors, anything where the builder has to *interpret* a `(new)` or `(diverges)` decision rather than transcribe it.
+- **Sonnet 5.5** (2 / 10) — close to Opus on coding and agentic work for half the price. The right default for delegated chunks in a multi-agent build, where the model cost is paid N times over.
+- **Haiku 5.5** (0.10 / 0.50, rising to 0.50 / 2.50 for prompts past 100K tokens) — well-specified mechanical transforms with no judgment in them: renames, mass call-site updates, boilerplate.
+- **Fable 5.2** (8 / 40, twice Opus) — the hardest, longest-horizon work: an overnight autonomous run, or a problem where it's genuinely unclear whether the approach is tractable. Reserve it for that.
 
 Mixing tiers inside one strategy is normal and usually right — Opus on the stream carrying the design risk, Sonnet or Haiku on the mechanical ones. Say which agent gets which.
 
