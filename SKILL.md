@@ -171,7 +171,7 @@ The spec is ready to sign — but the person who just wrote it is the worst-plac
 
 #### When the spec is done
 
-The spec is done when a review has returned on the text the user signed and every decision it raised is resolved. Changes made to resolve decisions get the quick check from "Handling the findings". They don't get a new review or a new sign-off question.
+The spec is done when a review has returned on the text the user signed and every decision it raised is resolved. Changes made to resolve decisions get the quick check from "Handling the findings", or a fresh review when an answer brought in something the review never saw ("When a review counts", Settling its decisions). Neither gets a new sign-off question.
 
 Then **stop**. Do not begin implementing. The handoff to coding is a separate decision the user makes — they may want to sit on the spec, share it, schedule the work, or use a different session for the build phase. Offering "want me to start on it?" at the very end is fine; jumping straight in is not.
 
