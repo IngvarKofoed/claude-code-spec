@@ -351,7 +351,13 @@ No review starts at this handoff: the user may still mark the draft up, and a re
 
 Loop on phases 4 and 5 until the spec is ready: comments integrated, the user out of change requests, and the Open Questions section empty (or every question answered).
 
-Ready is not signed off. Sign-off is **explicit, or it hasn't happened** — the user saying yes to the whole spec, in so many words. When you believe the spec is ready, ask for it directly: one AskUserQuestion — *"Do you sign off on this spec?"* — with "Signed off" and "Not yet — more changes" as the options (an Other answer is a change request). A plain "do you sign off?" in chat works too if the picker isn't available.
+Ready is not signed off. Sign-off is **explicit, or it hasn't happened** — the user saying yes to the whole spec, in so many words. When you believe the spec is ready — every question answered and folded in — first show **Here's what you get**, so the user signs what they can see:
+
+- the Outcome section's **What you get** and **How to verify** bullets, from the final text on disk;
+- the Implementation strategy's headline;
+- in one line, what changed since the user last saw the spec (their answers, their markup, your fixes), or "nothing changed".
+
+Then ask for it directly: one AskUserQuestion — *"Do you sign off on this spec?"* — with "Signed off" and "Not yet — more changes" as the options (an Other answer is a change request). A plain "do you sign off?" in chat works too if the picker isn't available. Never put the sign-off question in the same picker as a question whose answer would still change the spec.
 
 Never infer sign-off from:
 
@@ -363,7 +369,7 @@ Never infer sign-off from:
 
 Sign-off is also when the fresh-eyes review (phase 7) starts — in the same turn, in the background, just before the question goes out. That way it runs while the user reads the final text instead of after they answer. Skip the launch only if a review is already running, or has finished, on the current text. Note the spec's hash (`shasum <spec>`) as it starts. That's how you'll tell later whether the text it read is still the text being signed.
 
-- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself, either at the draft handoff or next to Open Questions in its picker. Start the review in the same turn that picker is shown, under the same rules. In plain `/spec`, the phase 5 Open Questions picker has no sign-off option, so no review starts there.
+- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself — with its own options, after "Here's what you get", and never next to a question still open. Start the review in the same turn that picker is shown, under the same rules. A wrapper may also start the review early, when it shows the Open Questions picker; accepted defaults keep it valid. In plain `/spec`, no review starts at the Open Questions picker.
 - **Re-read on every answer.** Before acting on any answer, re-read the spec from disk and compare the hash, since the user may have edited it while reading. `////` lines mean "Not yet", whatever they clicked. Any other change means the sign-off stands on the new text, but the review is stale, so start a fresh one.
 - **Stale means the text changed.** Once the spec changes after a review started, that review no longer vouches for it. The change can come from the user's edits or from a "Not yet" pass that rewrites something. Stop the review (TaskStop, or ignore its result where you can't) and start a fresh one at the next sign-off ask. Two kinds of edit don't count: applying that review's own fixes, and folding in Open Question answers that only accept the stated defaults, which the review already read.
 - **Hold early findings.** If a review returns before the user has answered (a plain-text ask, or a dismissed picker), hold its findings until the answer comes.
