@@ -29,6 +29,14 @@ During the spec phase, the only file the agent may create or modify is the spec 
 
 If a question can only be answered by trying something, write the question into the spec's Open Questions section and let the user run it. Don't violate the rule to "just check."
 
+## Before starting
+
+What a spec contains, and how its fresh-eyes review runs, live outside this file: in `format.md` and `review.md`, in the `spec-format` folder beside this skill's own folder (normally `~/.claude/skills/spec-format/`; this skill's folder is the base directory Claude Code gave when it loaded the skill). Below, `format.md` and `review.md` mean those two files.
+
+Before anything else, check that both are there with `test -f` (normally `test -f ~/.claude/skills/spec-format/format.md && test -f ~/.claude/skills/spec-format/review.md`). If either is missing, say so in one line and stop:
+
+> *"/spec needs spec-format, which is missing or incomplete. Install it with `/skill-manager:add https://github.com/IngvarKofoed/claude-code-spec-format.git --dir spec-format`, then run /spec again."*
+
 ## The workflow
 
 Seven phases. Don't skip them — even the fast ones serve a purpose.
@@ -68,232 +76,7 @@ If the request is so well-defined that there really is only one reasonable appro
 
 ### 4. Draft the spec
 
-Once an approach is chosen, write the draft to:
-
-```
-<repo-root>/docs/specs/YYYY-MM-DD-<slug>.md
-```
-
-- `YYYY-MM-DD` is today's date. Use `date +%Y-%m-%d` if unsure; the system date in your context is also fine.
-- `<slug>` is short, kebab-case, descriptive: `treasure-loot-tables`, `path-capacity-upgrades`, `session-rotation`. Aim for 2–4 words.
-- Create `docs/specs/` if it doesn't exist.
-- If the project's existing conventions clearly call for a different location (e.g., a `CLAUDE.md` says specs live in `requirements/`, or the user explicitly names a path), follow that instead.
-
-#### Length calibration
-
-Most specs are **50–200 lines**. Past 300 lines, you're either tackling something genuinely large or you're padding — and the model's bias is strongly toward padding. A reviewer who can't hold the whole spec in their head can't catch architectural problems in it. Resist the urge to include every type definition, every route signature, every migration step. The spec is the *thinking*, not the *implementation*.
-
-If you find yourself approaching 300 lines, ask: is this one spec, or three? Splitting a large feature into multiple smaller specs is usually right.
-
-(The Outcome section and the Implementation strategy section don't count against this budget. They're a handful of lines each, and they aren't design.)
-
-#### Template
-
-Use this as a starting skeleton. Adapt section names and depth — don't pad with empty sections, and add new ones only when they earn their keep.
-
-```markdown
-# <Feature name>
-
-<One-paragraph summary: what this feature is, why it exists, and the
-chosen approach in one breath.>
-
-## Outcome
-
-<Written with the draft and kept in sync with the Design on every
-pass, so the user signs off on it. The reader's fast answer to "what
-do I get, and how do I know it works?" Two short bullet lists, 2–4 bullets each. Keep both
-observable from outside the code — capabilities and checks, not
-implementation steps. This is not a test plan: each verify bullet is
-an action anyone can take plus the result they should see, not a
-test matrix.>
-
-**What you get:**
-
-- <Concrete, user-visible capability or change that exists once this
-  ships>
-
-**How to verify:**
-
-- <An action and the observable result that confirms the
-  implementation matches the spec>
-
-## Key decisions
-
-<The load-bearing choices a reviewer should check before approving.
-This is the section a code reviewer reads first — surface them here,
-don't bury them in Design. Cover both kinds:
-
-- **Code-shape choices** — which existing pattern to reuse, where a
-  check lives, which abstraction owns a piece of state.
-- **Tech-stack choices** — which package or library to add, which
-  dependency to drop, which framework / runtime / build tool to
-  pull in. A wrong dependency is just as load-bearing as a wrong
-  pattern.
-
-Each entry is one short bullet tagged with how it relates to the
-existing codebase:
-
-- `(reuses)`   — adopts an existing pattern as-is
-- `(extends)`  — reuses with deliberate additions or modifications
-- `(new)`      — introduces a pattern not previously in the codebase
-- `(diverges)` — goes against an existing convention, deliberately
-- `(breaking)` — changes a contract other code depends on
-
-Aim for 4–8 entries. More than 10 usually means you're listing
-implementation details instead of decisions.>
-
-- **<Short decision name>** (tag). <One- or two-sentence description
-  of what was decided and why, especially the relationship to
-  existing code.>
-
-## Goals
-
-- <What this is trying to accomplish>
-
-## Non-goals
-
-- <What it explicitly is not trying to do — bounds the discussion>
-
-## Design
-
-<The meat. Structure is flexible. Use whatever subsections make the
-design legible. Reference real file paths and identifiers where it
-helps. Code snippets are welcome when they pin down a tricky bit, but
-the spec is prose, not an implementation.>
-
-## Open questions
-
-- **Q:** <Specific, narrow, answerable question.> **Default:** <Your
-  best-guess answer. Stating a default lets the user accept by
-  silence rather than having to type a reply for every question.>
-
-## Alternatives considered
-
-<Only if approaches were discussed and rejected. Two or three lines
-each is plenty — the point is not to re-litigate, it's to record why
-this path was taken.>
-
-## Implementation strategy
-
-<Written with the draft and kept in sync on every pass. Strategy,
-agent count, and model, in 3–6 lines. See "Calling the
-implementation strategy" below.>
-```
-
-#### Why Outcome is in the draft
-
-The summary says what the feature is; Outcome says what you can point at once it exists. "What you get" is the deliverable in user-visible terms, and "How to verify" is the acceptance check — action plus expected observation. Together they give whoever builds the spec a finish line that isn't "the diff looks plausible."
-
-It's *placed* at the top because it's the first thing a reader of the finished spec needs. It's in the draft from the start because whoever builds the spec is graded against it, so the user must sign off on it, not just on the Design. It's derived from the design, which means it moves when the design moves. Re-derive it from the Design on every pass (phase 5), and never let a stale bullet contradict the design the user is about to approve. Don't recycle the Goals section: Goals state intent, Outcome states what you can point at and check. Keep the verify bullets black-box — an action anyone can take plus the observable result. The moment they name test files or frameworks, they've become the Testing section the spec deliberately doesn't contain.
-
-#### Why "Key decisions" matters
-
-A reviewer's job is to catch architectural mistakes — the spec inventing a new pattern when an existing one would do, or diverging from a convention without good reason. With the load-bearing choices buried in Design, that work means reading the whole spec. With them surfaced at the top, tagged by their relationship to the existing codebase, a reviewer can scan the `(new)` and `(diverges)` bullets in under a minute and spend the rest of their attention on the genuinely novel parts.
-
-This is the section that does the most work per line of any in the spec. Treat it as required, not optional.
-
-#### Why Open Questions take defaults
-
-Stating `Default: X` after every question lets the user accept by silence. Without defaults, every question is a blocker — the user has to type something on each one before the spec moves forward. With defaults, the spec is shippable as-is, and the user only weighs in on the questions where the default is wrong. The default also does double duty in phase 5: it becomes the pre-selected `(Recommended)` option when the questions are put to the user via AskUserQuestion, so accepting it is one click and overriding it is one pick.
-
-#### A worked example (right-sized)
-
-A complete spec for a small feature, demonstrating the shape and density that "right-sized" means in practice. ~70 lines, all sections present, none padded.
-
-````markdown
-# Skip inactive users in the daily digest
-
-Add a guard to the daily-digest job so users who haven't logged in
-for 30 days don't receive the email. The cutoff is checked at send
-time against `users.lastLoginAt`; users below the threshold are
-silently skipped.
-
-## Outcome
-
-**What you get:**
-
-- Users with no login in the last 30 days stop receiving the
-  daily digest.
-- A daily metric of how many users were skipped for inactivity.
-
-**How to verify:**
-
-- Set a test user's `lastLoginAt` 31+ days back, run the digest
-  job: no email arrives and no `digest_sends` row is written.
-- The same run increments `digest.skipped_inactive` by one.
-- A user who logged in yesterday still receives the digest.
-
-## Key decisions
-
-- **Where the check lives** (extends). Runs inside
-  `DigestJob.shouldSend(user)` next to the existing unsubscribe
-  check, not at the recipient-query level. Reason: keeps all
-  "should this user receive a digest" logic in one place.
-- **Threshold value** (new). 30 days, hardcoded as
-  `INACTIVE_DAYS = 30` in `digest.ts`. Not a config — we don't
-  expect tuning, and a constant is easier to grep.
-- **Send-log behavior** (diverges). Skipped users get no row in
-  `digest_sends`. Existing convention logs every attempted send;
-  we diverge because "didn't try" and "tried and suppressed" are
-  meaningfully different states.
-- **`date-fns` dependency** (reuses). The 30-day arithmetic uses
-  `differenceInDays` from `date-fns`, already a project dep.
-  Considered raw `Date` math; rejected for readability.
-
-## Goals
-
-- Stop emailing users who have effectively churned.
-- Have the skip be observable in metrics (daily count of
-  inactive-skipped users).
-
-## Non-goals
-
-- Re-engagement campaigns for churned users.
-- A configurable threshold per workspace.
-
-## Design
-
-`DigestJob.run()` already iterates eligible users and calls
-`shouldSend(user)`. Add a guard at the top of `shouldSend`:
-
-```ts
-const inactive =
-  user.lastLoginAt == null ||
-  differenceInDays(Date.now(), user.lastLoginAt) > INACTIVE_DAYS;
-if (inactive) {
-  metrics.inc("digest.skipped_inactive");
-  return false;
-}
-```
-
-Users with `lastLoginAt = NULL` (admin-created, never logged in)
-are treated as inactive and skipped.
-
-## Open questions
-
-- **Q:** Should re-activation flip eligibility same-day, or wait
-  for the next daily run? **Default:** wait for the next run — the
-  user already gets a login-confirmation email, so a same-day
-  digest would be noise.
-
-## Alternatives considered
-
-- **Filter at the recipient query** (`WHERE lastLoginAt > ...`).
-  Cheaper but scatters the eligibility logic across the query and
-  `shouldSend`. Rejected — one place beats two.
-- **Soft-delete inactive users.** Out of scope; we may still need
-  to email them for account purposes (password expiry, etc).
-
-## Implementation strategy
-
-*Not part of the design — a starting point for whoever builds this.*
-
-- **Single agent, Opus 5.5.** Two files (`digest.ts` and its test), one
-  code path, and the metrics counter has to land alongside the guard
-  — there's no chunk a subagent could take without re-reading the rest.
-````
-
-Note what this example *doesn't* have: no Implementation Order section, no Testing section (the Outcome verify bullets are black-box acceptance checks, not a test plan), no Migration section, no Deployment section. Those belong in the build phase — they're not design decisions. The Outcome section and the Implementation strategy are the two deliberate exceptions — Outcome because it's the acceptance contract for the design, the strategy because it's a launch instruction rather than a re-derivable plan.
+Once an approach is chosen, read `format.md` right before drafting, and follow it on this pass and every later one. It sets where the spec is written and its name (the path and slug), how long it runs, the template, the worked example, and how to call the Implementation strategy. Every draft carries the Outcome section and the Implementation strategy section from the start, so the user signs off on both.
 
 ### 5. Hand off for inline review
 
@@ -345,7 +128,7 @@ When the user answers the AskUserQuestion prompt, or signals they've added comme
 
 If the user instead says they're happy with the draft as-is, skip the integration pass and move to phase 6.
 
-No review starts at this handoff: the user may still mark the draft up, and a review of text that then changes is wasted. The exception is a wrapper skill that turns the handoff into a sign-off picker. That is a sign-off ask, covered in phase 6.
+No review starts at this handoff: the user may still mark the draft up, and a review of text that then changes is wasted. The exception is a wrapper skill that turns the handoff into a sign-off picker. That is a sign-off ask, covered in phase 6. *(for spec-role; remove when it's retired)*
 
 ### 6. Iterate to explicit sign-off
 
@@ -367,11 +150,11 @@ Never infer sign-off from:
 
 #### Start the review as you ask
 
-Sign-off is also when the fresh-eyes review (phase 7) starts — in the same turn, in the background, just before the question goes out. That way it runs while the user reads the final text instead of after they answer. Skip the launch only if a review is already running, or has finished, on the current text. Note the spec's hash (`shasum <spec>`) as it starts. That's how you'll tell later whether the text it read is still the text being signed.
+Sign-off is also when the fresh-eyes review (phase 7) starts — in the same turn, in the background, just before the question goes out. That way it runs while the user reads the final text instead of after they answer. Skip the launch only if a review is already running, or has finished, on the current text. Start it per `review.md`'s "Starting a review", and note the spec's hash as it starts, as that file's "When a review counts" says.
 
-- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself — with its own options, after "Here's what you get", and never next to a question still open. Start the review in the same turn that picker is shown, under the same rules. No review starts at an Open Questions picker — the answers may still change the spec.
+- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself — with its own options, after "Here's what you get", and never next to a question still open. Start the review in the same turn that picker is shown, under the same rules. No review starts at an Open Questions picker — the answers may still change the spec. *(for spec-role; remove when it's retired)*
 - **Re-read on every answer.** Before acting on any answer, re-read the spec from disk and compare the hash, since the user may have edited it while reading. `////` lines mean "Not yet", whatever they clicked. Any other change means the sign-off stands on the new text, but the review is stale, so start a fresh one.
-- **Stale means the text changed.** Once the spec changes after a review started, that review no longer vouches for it. The change can come from the user's edits or from a "Not yet" pass that rewrites something. Stop the review (TaskStop, or ignore its result where you can't), say so in one line naming what changed — the user sees the stop, and an unexplained one looks like a failure — and start a fresh one at the next sign-off ask. Two kinds of edit don't count: applying that review's own fixes, and folding in Open Question answers that only accept the stated defaults, which the review already read.
+- **Stop a stale review.** Whether a review still vouches for the spec is `review.md`'s "When a review counts" — apply it whenever the spec changes or a review ends. When the running review goes stale, stop it (TaskStop, or ignore its result where you can't), say so in one line naming what changed — the user sees the stop, and an unexplained one looks like a failure — and start a fresh one at the next sign-off ask.
 - **Hold early findings.** If a review returns before the user has answered (a plain-text ask, or a dismissed picker), hold its findings until the answer comes.
 - **After "Signed off":** if the review is back, handle its findings (phase 7). If not, say in one line that it's still running and its findings come when it's done, then end the turn. Its completion notice resumes the work.
 - **After "Not yet":** integrate the changes and keep iterating.
@@ -380,151 +163,27 @@ The explicit yes gates the end of the skill. Until it's given, keep iterating or
 
 ### 7. Fresh-eyes review
 
-The spec is ready to sign — but the person who just wrote it is the worst-placed to judge it. By the time you've drafted and revised a spec, every ambiguity in it has already been resolved *in your head*; you read the words and see what you meant, not what they actually say. So hand the text the user is signing to a reader who wasn't in the room. The review starts in phase 6, in the background, the moment sign-off is asked.
+The spec is ready to sign — but the person who just wrote it is the worst-placed to judge it, so the text the user is signing goes to a reader who wasn't in the room. The review starts in phase 6, in the background, the moment sign-off is asked. How it runs is in `review.md`:
 
-Spawn a subagent as a fresh reviewer and give it **only the spec file path** — not this conversation, not the approach discussion, not the option set you narrowed down in phase 3. That blindness is the whole point: a reviewer carrying your context inherits your interpretation and trips on nothing. Let it read the referenced code and docs read-only — it needs them to judge whether the design reuses what's there or reinvents it — but keep the conversation out of its head.
-
-Launch it on Fable (`model: "fable"` on the Agent call) and leave its effort at the default. Speed matters here because the user may be waiting on it. Over a month of runs, Fable 5.2 reviews took a median 2.8 minutes against 6.9 on Opus 5.5, with similar findings.
-
-The reviewer looks for six kinds of problem — all high-level, design-level concerns a fresh reader is uniquely placed to catch, and exactly the kind of thing the user of this skill should get a say in. They fall into three pairs: is it **clear** (ambiguity, completeness), is it **right-sized** (unnecessary complexity, goal-fit), and can you **live with it** (bad UX, reversibility).
-
-- **Ambiguity** — a load-bearing part of the design that a competent implementer could reasonably read two ways and build differently. The test: *would two engineers implement this and both believe they followed the spec, yet ship incompatible things?* "This sentence could be tighter" is a nit; "it's unspecified whether the check runs before or after the write, and the data model differs depending" clears the bar.
-- **Completeness** — the design covers the happy path but leaves a load-bearing case unsaid: failure, empty or malformed input, concurrency, or the existing data and clients at rollout. Where ambiguity is something said two ways, this is something not said at all — and the cold reader is the one most likely to notice, because the author already filled the gap in their head. The test: *is there a case a builder will hit and have to guess at, where guessing wrong changes the result?* Let the trivial omissions go; flag the ones that force a blind decision.
-- **Unnecessary complexity** — machinery the spec introduces that isn't earning its keep: a new table, service, abstraction, or dependency where something simpler or already-present would do, or scope that has crept past the smallest interesting version (phase 1). The test: *can you name a materially simpler design that still meets the stated Goals?* If yes, that's the finding.
-- **Goal-fit** — the design doesn't actually deliver a stated Goal, or spends effort on things no Goal asked for. The test: *walk each Goal and point at the part of the Design that satisfies it, then walk the Design and check each piece traces back to a Goal.* A Goal with nothing behind it is a gap; a slab of Design with no Goal behind it is either a missing Goal or scope to cut (which is really the complexity finding wearing a different hat). The Outcome bullets are cheap anchors for this walk — check that they trace to the Design too.
-- **Bad UX** — the experience of whoever *uses the thing being specced* (end user or operator) would be confusing, surprising, or unrecoverable as designed: a destructive action with no confirmation, a silent failure, an error with no path forward, a default that will surprise most users. This is the UX of the feature — not the UX of using this skill.
-- **Reversibility** — the design commits to something expensive or impossible to undo: an irreversible migration, a breaking API or schema change, deleting data, a dependency that's hard to back out. This lens matters most here, at spec-time, because a one-way door costs almost nothing to reconsider now and a great deal once the branch exists. The test: *if this proves wrong after it ships, how hard is it to walk back?* The point isn't to veto it — it's to be sure the user chose the door knowingly, so it's always a decision, never a silent fix.
-
-The reviewer only reads — it returns what it found, and any edits to the spec are yours to make. Sort each finding into one of three groups. First ask whether the user already settled it; if not, ask **is this a decision, or a fix?**
-
-- **Already decided — note it, don't ask.** The reviewer never saw the conversation, so it will sometimes re-open something the user already settled. That might be the approach they chose in phase 3, an answered Open Question, a `////` comment, or a reviewer suggestion they rejected earlier. Don't put it to them again. Make sure the spec states the decision plainly, since a finding like this usually means it was only implied, and note it in a line. Only this conversation counts, and only a clear answer: if you're unsure the user really settled it, it's a decision.
-- **Decisions go to the user.** If resolving it means choosing between plausible alternatives — which of two designs was intended, whether scope has crept too far, which side of a UX tradeoff to take — a human has to make that call. These are the high-level items the review exists to surface. Bring them back as a short list: the category, the spot in the spec, what's at stake, and the options. Hold to critical/high here — the user just signed off, and interrupting that is earned only by something they'd genuinely want to decide before walking away; a pile of things to adjudicate trains them to skip the review. If nothing rises to that bar, say so in one line. Then let *them* choose what changes — reworking an approved design behind their back takes the decision out of their hands. When they pick something, loop back through phase 4 (revise) and phase 5 (re-confirm) for just those points, and keep the Outcome bullets and the strategy in sync with whatever moved. When the user rejects a reviewer suggestion, add one line to Alternatives considered saying what was suggested and why the spec stays as it is, so builders and later reviews don't raise it again.
-- **Fixes just get made.** If the problem has one obviously-correct resolution and no real tradeoff — a snippet that contradicts a stated decision, a missing null guard, two sections that disagree, an off-by-one in an example — there's nothing for the user to decide. Correct it directly in the spec (the spec file is the one you're allowed to edit), then note what you tidied in a line or two so nothing changes silently. These fixes make the spec match the design the user already approved; they don't re-open it. Forcing the user to adjudicate a mechanical correction wastes the very attention the review is meant to protect.
-
-The line between a decision and a fix is simply whether more than one resolution is plausible. If a "fix" turns out to need a judgment call, it was never a fix — treat it as a decision and surface it. Either way, don't re-run the full review after every touch-up — it's a final gate, not a treadmill; a quick check that the flagged items are resolved is enough.
-
-If subagents aren't available (e.g., Claude.ai), do the pass inline instead, right before asking for sign-off, since it can't overlap with the user's reading. Re-read the spec cold from disk and apply the same split: surface the decisions, fix the mechanical defects. It's weaker — you can't truly un-know the conversation — but reading the written words fresh still catches more than skipping the pass.
-
-A review that fails, returns nothing, or is lost counts as no review — never as "nothing to decide". Say so, re-run it once, and if that fails too, do the pass inline.
+- **Start it** per "Starting a review". The reviewer's brief holds two paths: the spec, and `review.md` with the instruction to follow its "For the reviewer" part. Nothing from this conversation goes in — not the approach discussion, not the option set from phase 3.
+- **Apply "When a review counts"** whenever the spec changes or a review ends. It says which text a review vouches for, and what to do when one fails, returns nothing or is lost.
+- **Handle its findings** per "Handling the findings", including its inline pass when subagents aren't available. When the user picks something on a decision, loop back through phase 4 (revise) and phase 5 (re-confirm) for just those points.
 
 #### When the spec is done
 
-The spec is done when a review has returned on the text the user signed and every decision it raised is resolved. Changes made to resolve decisions get the quick check above. They don't get a new review or a new sign-off question.
+The spec is done when a review has returned on the text the user signed and every decision it raised is resolved. Changes made to resolve decisions get the quick check from "Handling the findings". They don't get a new review or a new sign-off question.
 
 Then **stop**. Do not begin implementing. The handoff to coding is a separate decision the user makes — they may want to sit on the spec, share it, schedule the work, or use a different session for the build phase. Offering "want me to start on it?" at the very end is fine; jumping straight in is not.
 
-No closing offer comes before this point. That covers your own offer, and any handoff or build offer a wrapper skill adds. Until the review is handled, the spec may still change.
-
-## Calling the implementation strategy
-
-The spec says what to build. It also needs a starting point for *how* — which agent strategy, how many agents, which model. Someone will decide whether to run this in one session, fan it out, or throw an orchestrated workflow at it, and you've spent the whole spec phase reading the exact code it touches. Nobody is better placed to guess.
-
-Every draft carries a short **Implementation strategy** section at its end (phase 4), kept in sync on every pass, and its headline closes the phase 5 recap. It goes in the file rather than staying in the conversation because the build often happens in a different session — a chat line is gone by then; a section is still there when someone opens the spec to start work.
-
-### Strategy
-
-One of three, picked on the shape of the work. Neither single agent nor multi-agent is the safe default; they fail in opposite directions. Fan out a tightly coupled change and the agents conflict and guess at each other's context. Keep a many-part build in one session and it grinds through a single context window, pays the lead's model rate for mechanical work, and has lost the early decisions to compaction by the end.
-
-- **Single agent** — one session, working sequentially. The change is one coherent thread: a few files on one code path, each edit building on the last, nothing that could be handed off without first explaining most of the rest.
-- **Multi-agent** — the implementer session leads and delegates bounded chunks to subagents. Usually it builds the core itself (the part that interprets a `(new)` or `(diverges)` decision) and hands off the rest; when the streams are fully independent, it may only coordinate and integrate. Chunks run in parallel when they don't touch each other's files, and one after another when one builds on the last; both count. A chunk qualifies when it has a settled input (an interface or decision that the spec, or the lead's first step, pins down), its own files, and a check for done. Typical chunks: one per adapter or module behind a shared interface; the call-site sweep after a signature change; the UI over a finished backend; tests written against the Outcome bullets. The test: *can you name one chunk a fresh agent could finish from the spec plus a one-paragraph brief?*
-- **Ultracode** — orchestrated fan-out with adversarial verification. Reserved for when a wrong implementation is expensive and hard to walk back: a `(breaking)` or irreversible Key decision, a data-integrity or security surface, or correctness that can't be eyeballed from a diff. It costs a great deal of tokens, so it has to earn them.
-
-Breadth is a signal of its own. A spec whose Design spans more than one layer or subsystem (backend and UI, a new module and its call sites, an interface and its implementations) almost always has a chunk that passes the multi-agent test. One that stays inside a single module rarely does.
-
-The spec's own **Key decisions** tags are the cheapest signal available. A wall of `(reuses)` / `(extends)` on one code path is single-agent work. `(new)` across independent subsystems is a chunk per subsystem. A `(breaking)` signature change whose callers all live in this repo is a call-site sweep, a natural cheap-model chunk. A `(breaking)` contract other systems depend on, or a migration that can't be undone, is what pushes toward ultracode.
-
-### Agent count
-
-For a single agent, skip it. For multi-agent, the count *is* the number of chunks you can actually name. Say what each one owns, in real file paths, whether the chunks run in parallel or in sequence, and what the lead keeps for itself (the core, the integration pass, or both). One delegated chunk is a legitimate answer; two to four is typical. If you can't name what agent #4 owns without overlapping agent #2, there are three chunks, not four.
-
-For ultracode, describe the shape rather than a headcount ("three finders, then adversarial verify per finding"). The harness caps how many agents run at once, so a bigger number buys queueing, not speed.
-
-### Model
-
-The principle outlasts the names: **pick the cheapest tier that clears the work's difficulty bar.** As of 2026-11, that means (prices in USD per million input / output tokens):
-
-- **Opus 5.5** (4 / 20) — the default for implementation. Multi-file features, refactors, anything where the builder has to *interpret* a `(new)` or `(diverges)` decision rather than transcribe it.
-- **Sonnet 5.5** (2 / 10) — close to Opus on coding and agentic work for half the price. The right default for delegated chunks in a multi-agent build, where the model cost is paid N times over.
-- **Haiku 5.5** (0.10 / 0.50, rising to 0.50 / 2.50 for prompts past 100K tokens) — well-specified mechanical transforms with no judgment in them: renames, mass call-site updates, boilerplate.
-- **Fable 5.2** (8 / 40, twice Opus) — the hardest, longest-horizon work: an overnight autonomous run, or a problem where it's genuinely unclear whether the approach is tractable. Reserve it for that.
-
-Mixing tiers inside one strategy is normal and usually right — Opus on the stream carrying the design risk, Sonnet or Haiku on the mechanical ones. Say which agent gets which.
-
-### The section
-
-It sits below Alternatives considered. Keep it to 3–6 lines — it's a starting point, not a plan, and it doesn't count against the spec's length budget.
-
-````markdown
-## Implementation strategy
-
-*Not part of the design — a starting point for whoever builds this.*
-
-- **Single agent, Opus 5.5.** Four files on one code path, and the edits
-  depend on each other — parallelism would only produce conflicts.
-````
-
-A multi-agent one, showing what each agent owns and why the tiers differ:
-
-````markdown
-## Implementation strategy
-
-*Not part of the design — a starting point for whoever builds this.*
-
-- **Multi-agent, 3 streams.** One agent per adapter —
-  `adapters/stripe.ts`, `adapters/paypal.ts`, `adapters/adyen.ts` —
-  which share only the `PaymentAdapter` interface. Then a single
-  integration pass on `router.ts`.
-- **Sonnet 5.5 for the adapters, Opus 5.5 for the integration pass.** The
-  adapters transcribe a settled interface; the router is where the
-  `(diverges)` retry decision has to be interpreted.
-````
-
-The more common multi-agent shape: the lead builds the core, then hands off what hangs off it:
-
-````markdown
-## Implementation strategy
-
-*Not part of the design — a starting point for whoever builds this.*
-
-- **Multi-agent: the lead plus 2 chunks.** The lead builds the `(new)`
-  rotation core in `auth/session.ts` and settles `rotate()`'s
-  signature. Then, in parallel: one subagent moves the 23 callers in
-  `routes/` to `rotate()`, another builds the toggle in
-  `web/settings/` against it.
-- **Opus 5.5 lead, Haiku 5.5 for the call sites, Sonnet 5.5 for the
-  toggle.** The sweep is mechanical; the toggle needs judgment but no
-  design calls.
-````
-
-Its headline, one line long, closes the phase 5 recap:
-
-> *"Implementation strategy: **single agent on Opus 5.5** — four files on one code path, and the edits depend on each other."*
-
-**Call it in both directions.** Don't inflate: multi-agent on a four-file thread buys merge conflicts and agents guessing at each other's context, ultracode on a small change just burns tokens, and the top model tier by reflex is waste. If it's a single-agent Sonnet job, say so. But don't shrink by reflex either. In practice the pull toward "single agent" is the stronger one, because it feels safe, and it isn't free: a long build in one context gets slower, costlier and less sharp as it goes. If you can name a chunk that passes the multi-agent test, call multi-agent.
-
-**This one appendix is not a door for the others.** Implementation order, test matrices, deployment runbooks, and dependency lists still don't belong in the spec. The strategy section earns its place because it's a launch instruction the next session can't re-derive from the design — everything on that list can be.
-
-## Style guidelines for the spec itself
-
-- **Concrete over abstract.** "Adds a `carrierLimit: number` field on `Path`, default 1" beats "introduces capacity tracking on paths."
-- **Reference real names.** File paths, function names, types — they make the spec auditable against the code.
-- **Explain *why*, not just *what*.** A reader six months from now needs to know the reasoning, not just the rule. The why is the part the code alone can't capture.
-- **Right-size.** See the length calibration above. Don't include a section heading if there's nothing meaningful under it.
-- **Match the project's existing voice.** If the project's docs are narrative prose, write narrative prose. If they're bullet-heavy, lean bulletier. Skim a sibling doc before writing.
+No closing offer comes before this point. That covers your own offer, and any handoff or build offer a wrapper skill adds. Until the review is handled, the spec may still change. *(for spec-role; remove when it's retired)*
 
 ## Common mistakes to avoid
+
+Mistakes about what goes in the spec are in `format.md`, and mistakes in handling the review are in `review.md`. These are about the flow:
 
 - **Drafting before the user has picked an approach.** The whole point of phase 3 is to fork the conversation early. Writing the spec first and asking later wastes a draft and biases the discussion.
 - **Manufacturing options that aren't real.** If there's only one reasonable approach, say so. A weak Option B insults the user's time.
 - **Editing source code "to verify."** If you need to confirm something works, write it as an Open Question and let the user check. Read-only means read-only.
-- **Treating implementation logistics as design.** Implementation order, test matrices, deployment runbooks, NuGet / dependency change lists — these belong in the build phase, not the spec. If you find yourself writing a "Testing" or "Implementation order" section, ask whether it's making any genuine *design* decision. If not, cut it. (The Outcome section's "How to verify" bullets are the deliberate exception: black-box acceptance checks, not a test plan — the moment they name test files or frameworks, they've crossed the line.)
-- **Burying the architectural choices in Design.** A reviewer should be able to find the load-bearing decisions in the Key Decisions section without reading the rest. If the `(new)` and `(diverges)` bullets aren't there, you've made the reviewer's job much harder than it needs to be.
-- **Skipping the Open Questions section.** It's the cheapest way to surface "I'm not sure about this" without blocking the draft. Use it generously, with `Default: X` for each entry.
 - **Leaving Open Questions unresolved at sign-off.** The spec is "done" only when the section is empty (or removed entirely).
 - **Inferring sign-off.** Answering the last Open Question, clicking picker defaults, or praising a section is not approval of the spec. Sign-off is the user saying yes to the whole document, explicitly — ask for it (phase 6), and don't treat the spec as done without it.
-- **Letting Outcome or the strategy go stale between passes.** Both are derived from the design, and the user signs off on both. A pass that changes the Design without bringing them along hands the user an acceptance contract that contradicts what they're approving. Re-derive them on every pass, and say in a line when either one moved.
-- **Bringing the user things that aren't decisions.** Phase 7 earns its keep by only surfacing genuine, critical/high design decisions — the calls a human actually needs to make. Mechanical defects with one right answer get fixed in the spec, not raised, and anything the user already settled in the conversation gets a one-line note, not a second question. Dumping fixable nits on someone who just signed off teaches them to ignore the review; if there's nothing to decide, say so in one line and stop.
-- **Getting the decide/fix split backwards.** The two failure modes are opposite: making the user adjudicate a null-guard-grade fix, or quietly reworking the *design* under the cover of a "fix." The test is whether more than one resolution is plausible — if it is, it's a decision and belongs to the user.
-- **Calling the strategy by reflex.** The strategy call picks on the shape of the work, not a default. Multi-agent on a tightly coupled thread buys merge conflicts; single agent on a build with a nameable, self-contained chunk leaves the lead grinding through one context at its own model rate. Ultracode still needs a genuinely expensive-to-undo change, and the model is still the cheapest tier that clears the bar.
-- **Letting the strategy appendix grow into a plan.** It's 3–6 lines: strategy, agent count, model, and why. The moment it starts listing implementation order or test cases, it's become the build plan the spec deliberately doesn't contain — and it drags the other logistics sections back in with it.
 - **Starting to implement after sign-off.** The skill ends at the signed-off, reviewed spec (phase 7). Implementation is a separate, deliberate decision by the user.
