@@ -134,17 +134,16 @@ No review starts at this handoff: the user may still mark the draft up, and a re
 
 Loop on phases 4 and 5 until the spec is ready: comments integrated, the user out of change requests, and the Open Questions section empty (or every question answered).
 
-Ready is not signed off. Sign-off is **explicit, or it hasn't happened** — the user saying yes to the whole spec, in so many words. When you believe the spec is ready — every question answered and folded in — ask for it directly, with **Here's what you get** inside the picker, so the user signs what they can see:
+Ready is not signed off. Sign-off is **explicit, or it hasn't happened** — the user saying yes to the whole spec, in so many words. When you believe the spec is ready — every question answered and folded in — first show **Here's what you get** in chat, so the user signs what they can see:
 
-- the Outcome section's **What you get** and **How to verify** bullets, from the final text on disk;
+- the Outcome section's **What you get** and **How to verify** bullets, in full, from the final text on disk;
 - the Implementation strategy's headline;
 - in one line, what changed since the user last saw the spec (their answers, their markup, your fixes), or "nothing changed".
 
-Ask with one AskUserQuestion — *"Do you sign off on this spec?"* — with "Signed off" and "Not yet — more changes" as the options (an Other answer is a change request). Give every option the same `preview`: the block above, as short markdown lines, since it sits in a narrow box beside the options. The same preview on every option keeps it in view whichever one is highlighted.
+Then, in the same turn, ask for it directly: one AskUserQuestion — *"Do you sign off on this spec?"* — with "Signed off" and "Not yet — more changes" as the options (an Other answer is a change request). A plain "do you sign off?" in chat works too if the picker isn't available.
 
-- **The preview is where the block goes,** not chat text before the picker: that text may be off screen while the picker is open.
-- **Keep the question to that one line.** A summary of the design in the question is not What you get, and doesn't replace the preview.
-- **No picker available:** show the block in chat, then ask "do you sign off?" plainly.
+- **The block is part of the conversation, not the picker.** Write it as an ordinary message before the AskUserQuestion call, and give the options no `preview`. The preview box is too narrow and short for the bullets: it breaks them into fragments and cuts off the rest.
+- **Keep the question to that one line.** A summary of the design in the question is not What you get, and doesn't replace the block.
 
 Never put the sign-off question in the same picker as a question whose answer would still change the spec.
 
@@ -158,7 +157,7 @@ Never infer sign-off from:
 
 Sign-off is also when the fresh-eyes review (phase 7) starts — in the same turn, in the background, just before the question goes out. That way it runs while the user reads the final text instead of after they answer. Skip the launch only if a review is already running, or has finished, on the current text. Start it per `review.md`'s "Starting a review", and note the spec's hash as it starts, as that file's "When a review counts" says.
 
-- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself — with its own options, each carrying the Here's-what-you-get preview, and never next to a question still open. Start the review in the same turn that picker is shown, under the same rules. No review starts at an Open Questions picker — the answers may still change the spec. *(for spec-role; remove when it's retired)*
+- **A wrapper's sign-off picker counts as asking.** A wrapper skill may offer sign-off itself — with its own options, after "Here's what you get" in chat, and never next to a question still open. Start the review in the same turn that picker is shown, under the same rules. No review starts at an Open Questions picker — the answers may still change the spec. *(for spec-role; remove when it's retired)*
 - **Re-read on every answer.** Before acting on any answer, re-read the spec from disk and compare the hash, since the user may have edited it while reading. `////` lines mean "Not yet", whatever they clicked. Any other change means the sign-off stands on the new text, but the review is stale, so start a fresh one.
 - **Stop a stale review.** Whether a review still vouches for the spec is `review.md`'s "When a review counts" — apply it whenever the spec changes or a review ends. When the running review goes stale, stop it (TaskStop, or ignore its result where you can't), say so in one line naming what changed — the user sees the stop, and an unexplained one looks like a failure — and start a fresh one at the next sign-off ask.
 - **Hold early findings.** If a review returns before the user has answered (a plain-text ask, or a dismissed picker), hold its findings until the answer comes.
